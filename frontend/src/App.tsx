@@ -10,7 +10,7 @@ function App() {
   const { isLoggedIn, logout } = useAuth();
 
   if (!isLoggedIn) {
-    return <LoginPage onSuccess={() => window.location.reload()} />;
+    return <LoginPage />;
   }
 
   return (

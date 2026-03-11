@@ -1,11 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
-interface LoginPageProps {
-  onSuccess: () => void;
-}
-
-export function LoginPage({ onSuccess }: LoginPageProps) {
+export function LoginPage() {
   const { login, error } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,7 +12,6 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
     setLoading(true);
     await login({ email, password });
     setLoading(false);
-    if (!error) onSuccess();
   };
 
   return (

@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { login as apiLogin, logout as apiLogout, LoginPayload } from '../services/api';
 
+interface ApiError {
+  response?: {
+    data?: {
+      detail?: string;
+    };
+  };
+  message?: string;
+}
+
 export function useAuth() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(
     () => !!localStorage.getItem('access_token')
@@ -12,8 +21,9 @@ export function useAuth() {
     try {
       await apiLogin(payload);
       setIsLoggedIn(true);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Login failed');
+    } catch (err: unknown) {
+      const apiErr = err as ApiError;
+      setError(apiErr?.response?.data?.detail || apiErr?.message || 'Login failed');
     }
   };
 

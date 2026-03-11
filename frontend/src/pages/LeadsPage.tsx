@@ -4,17 +4,20 @@ import { getLeads, createLead, deleteLead, Lead, LeadCreate } from '../services/
 export function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<LeadCreate>({ company_name: '' });
   const [saving, setSaving] = useState(false);
 
   const fetchLeads = async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const data = await getLeads();
       setLeads(data);
-    } catch (_) {
-      // handle silently
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to load leads';
+      setFetchError(msg);
     } finally {
       setLoading(false);
     }
@@ -113,6 +116,12 @@ export function LeadsPage() {
             {saving ? 'Saving…' : 'Save Lead'}
           </button>
         </form>
+      )}
+
+      {fetchError && (
+        <div style={{ background: '#fff5f5', color: '#c53030', padding: '10px 14px', borderRadius: 6, marginBottom: 16, fontSize: 14 }}>
+          {fetchError}
+        </div>
       )}
 
       {loading ? (
