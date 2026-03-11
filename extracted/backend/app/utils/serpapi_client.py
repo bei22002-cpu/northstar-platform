@@ -1,1 +1,0 @@
-# SerpAPI client pseudocode (Specification)

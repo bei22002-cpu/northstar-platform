@@ -2,4 +2,11 @@
 *.env
 __pycache__/
 *.pyc
+*.pyo
 node_modules/
+extracted/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/

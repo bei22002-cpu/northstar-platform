@@ -1,1 +1,0 @@
-# Lead scraper pseudocode (Specification)
