@@ -2,4 +2,14 @@
 *.env
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
 node_modules/
+frontend/build/
+*.log
+.DS_Store
