@@ -3,12 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth_router import router as auth_router
 from app.api.leads_router import router as leads_router
+from app.api.outreach_router import router as outreach_router
 from app.core.config import CORS_ORIGINS
 
 app = FastAPI(
     title="NorthStar Consulting AI Platform",
-    description="AI-driven consulting platform — Phase 1 (Auth) + Phase 2 (Lead Engine)",
-    version="0.2.0",
+    description="AI-driven consulting platform — Phase 1 (Auth) + Phase 2 (Lead Engine) + Phase 3 (Outreach Engine)",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -21,6 +22,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(leads_router)
+app.include_router(outreach_router)
 
 
 @app.get("/")
