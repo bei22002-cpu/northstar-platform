@@ -1,68 +1,27 @@
+from typing import Literal, Optional
+
 from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime
-from enum import Enum
 
 
-class ToneEnum(str, Enum):
-    executive = "executive"
-    professional = "professional"
-    casual = "casual"
-
-
-class OutreachStatusEnum(str, Enum):
-    draft = "draft"
-    approved = "approved"
-    sent = "sent"
-
-
-class OutreachMessageCreate(BaseModel):
+class OutreachGenerateRequest(BaseModel):
     lead_id: int
-    tone: ToneEnum = ToneEnum.professional
+    tone: Literal["executive", "professional", "casual"]
+    service_focus: Literal["operations", "strategy", "scaling"]
+    extra_context: Optional[str] = None
 
 
-class OutreachMessageUpdate(BaseModel):
-    subject: Optional[str] = None
-    body: Optional[str] = None
-    tone: Optional[ToneEnum] = None
-    status: Optional[OutreachStatusEnum] = None
+class OutreachGenerateResponse(BaseModel):
+    subject: str
+    message: str
 
 
-class OutreachMessageResponse(BaseModel):
-    id: int
+class OutreachFollowupsRequest(BaseModel):
     lead_id: int
-    subject: str
-    body: str
-    tone: ToneEnum
-    status: OutreachStatusEnum
-    created_at: datetime
-    updated_at: Optional[datetime]
-
-    model_config = {"from_attributes": True}
+    tone: Literal["executive", "professional", "casual"]
+    service_focus: Literal["operations", "strategy", "scaling"]
 
 
-class FollowUpCreate(BaseModel):
-    outreach_id: int
-    sequence_number: int = 1
-
-
-class FollowUpResponse(BaseModel):
-    id: int
-    outreach_id: int
-    subject: str
-    body: str
-    sequence_number: int
-    status: OutreachStatusEnum
-    created_at: datetime
-    updated_at: Optional[datetime]
-
-    model_config = {"from_attributes": True}
-
-
-class ApproveRequest(BaseModel):
-    message_id: int
-
-
-class OutreachWithFollowUps(BaseModel):
-    message: OutreachMessageResponse
-    follow_ups: List[FollowUpResponse] = []
+class OutreachFollowupsResponse(BaseModel):
+    followup_1: str
+    followup_2: str
+    followup_3: str

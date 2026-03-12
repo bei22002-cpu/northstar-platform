@@ -3,13 +3,10 @@
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
+node_modules/
+extracted/
 *.egg-info/
 dist/
 build/
 .venv/
 venv/
-node_modules/
-frontend/build/
-*.log
-.DS_Store

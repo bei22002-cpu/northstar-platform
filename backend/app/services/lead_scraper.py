@@ -1,36 +1,28 @@
-import httpx
-from typing import List, Dict, Any
+from typing import Optional
 
-from app.core.config import SERPAPI_KEY
+from app.utils.serpapi_client import search_leads
 
 
-def search_leads(query: str, num_results: int = 10) -> List[Dict[str, Any]]:
+def scrape_leads(query: str, location: Optional[str] = None, industry: Optional[str] = None, num_results: int = 10) -> list[dict]:
     """
-    Search for leads using SerpAPI (Google Search).
-    Only uses publicly accessible search results.
+    Search publicly available web sources via SerpAPI and normalise
+    the results into a list of raw lead dictionaries.
+
+    Only public web data is used — no restricted or private data sources.
     """
-    if not SERPAPI_KEY:
-        return []
+    raw_results = search_leads(query=query, location=location, num_results=num_results)
 
-    params = {
-        "q": query,
-        "api_key": SERPAPI_KEY,
-        "num": num_results,
-        "engine": "google",
-    }
+    leads = []
+    for result in raw_results:
+        lead = {
+            "company_name": result.get("title", "Unknown"),
+            "website": result.get("link"),
+            "notes": result.get("snippet"),
+            "source": "serpapi",
+            "industry": industry,
+            "contact_name": None,
+            "email": None,
+        }
+        leads.append(lead)
 
-    try:
-        response = httpx.get("https://serpapi.com/search", params=params, timeout=10.0)
-        response.raise_for_status()
-        data = response.json()
-        results = []
-        for item in data.get("organic_results", []):
-            results.append({
-                "company_name": item.get("title", ""),
-                "website": item.get("link", ""),
-                "snippet": item.get("snippet", ""),
-                "source": "serpapi",
-            })
-        return results
-    except Exception:
-        return []
+    return leads
