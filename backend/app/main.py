@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth_router import router as auth_router
 from app.api.leads_router import router as leads_router
+from app.api.outreach_router import router as outreach_router
 from app.core.config import CORS_ORIGINS
 
 app = FastAPI(
@@ -21,6 +22,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(leads_router)
+app.include_router(outreach_router)
 
 
 @app.get("/")

@@ -39,8 +39,20 @@ async function request(method, path, body = null) {
 
 export const api = {
   /** Auth */
-  login: (email, password) =>
-    request("POST", "/auth/login", { email, password }),
+  login: (email, password) => {
+    const body = new URLSearchParams({ username: email, password });
+    return fetch(`${BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(errorData.detail || res.statusText);
+      }
+      return res.json();
+    });
+  },
 
   register: (email, password, full_name) =>
     request("POST", "/auth/register", { email, password, full_name }),
