@@ -3,11 +3,10 @@
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
-*.db
-*.sqlite3
 node_modules/
-dist/
-.vite/
-.pytest_cache/
+extracted/
 *.egg-info/
+dist/
+build/
+.venv/
+venv/
