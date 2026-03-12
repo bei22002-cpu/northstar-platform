@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum
 from sqlalchemy.sql import func
 import enum
 
-from app.database import Base
+from app.core.database import Base
 
 
 class ToneEnum(str, enum.Enum):

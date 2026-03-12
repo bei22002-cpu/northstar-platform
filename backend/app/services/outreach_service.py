@@ -61,9 +61,10 @@ def approve_outreach_message(db: Session, message_id: int) -> OutreachMessage:
     """
     msg = get_outreach_message(db, message_id)
     if msg.status != OutreachStatusEnum.draft:
+        status_display = getattr(msg.status, "value", msg.status)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Message is already in '{msg.status}' state",
+            detail=f"Message is already in '{status_display}' state",
         )
     msg.status = OutreachStatusEnum.approved
     db.commit()
