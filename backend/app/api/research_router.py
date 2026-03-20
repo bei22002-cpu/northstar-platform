@@ -25,15 +25,20 @@ def list_insights(
 ):
     """List research insights with optional filters."""
     return research_service.get_insights(
-        db, engine_id=engine_id, category=category, viability=viability, min_relevance=min_relevance
+        db,
+        engine_id=engine_id,
+        category=category,
+        viability=viability,
+        min_relevance=min_relevance,
     )
 
 
 @router.post("/insights", response_model=ResearchInsightOut, status_code=status.HTTP_201_CREATED)
-def create_insight(payload: ResearchInsightCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Record a new research insight from an AI engine."""
-    try:
-def create_insight(payload: ResearchInsightCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_insight(
+    payload: ResearchInsightCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Record a new research insight from an AI engine."""
     try:
         return research_service.create_insight(
@@ -48,8 +53,6 @@ def create_insight(payload: ResearchInsightCreate, db: Session = Depends(get_db)
             relevance_score=payload.relevance_score,
             actionable_steps=payload.actionable_steps,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
