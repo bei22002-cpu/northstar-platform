@@ -75,7 +75,7 @@ def submit_idea(
 @router.get("/{idea_id}", response_model=BusinessIdeaOut)
 def get_idea(idea_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get a specific business idea by ID."""
-    idea = db.query(BusinessIdea).filter(BusinessIdea.id == idea_id).first()
+    idea = db.query(BusinessIdea).filter(BusinessIdea.id == idea_id, BusinessIdea.user_id == current_user.id).first()
     if not idea:
         raise HTTPException(status_code=404, detail="Business idea not found")
     return idea
