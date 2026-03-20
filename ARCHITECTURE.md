@@ -1,6 +1,6 @@
 # NorthStar Platform — System Architecture
 
-This document outlines the technical architecture for the NorthStar Consulting AI Platform. It includes all backend and frontend components implemented to date (Phase 1 and Phase 2), as well as the planned system modules.
+This document outlines the technical architecture for the NorthStar Consulting AI Platform. It includes all backend and frontend components implemented to date (Phases 1-4), as well as the planned system modules.
 
 ---
 
@@ -10,14 +10,16 @@ NorthStar is a modular AI-driven consulting platform consisting of:
 
 - A **FastAPI** backend (Python)
 - A **PostgreSQL** database
-- A **React** frontend (to be built in Phase 6)
+- A **React** frontend (TypeScript, Vite, mobile-responsive)
 - AI-powered subsystems for:
   - Authentication
   - Lead generation (public web search)
   - Outreach (safe, human-approved messaging)
-  - Proposal generation
-  - Market intelligence
-  - Dashboard and analytics
+  - AI engine collaboration & communication
+  - Autonomous funding identification & token management
+  - Research-driven funding strategy discovery
+  - User rewards & engagement tracking
+  - Business idea submission & AI analysis
 
 All modules are built with clean separation of concerns and follow a scalable folder structure.
 
@@ -39,18 +41,39 @@ backend/
     │   └── security.py          # Password hashing, JWT creation/decoding
     ├── models/
     │   ├── user.py              # SQLAlchemy User ORM model
-    │   └── lead.py              # SQLAlchemy Lead ORM model
+    │   ├── lead.py              # SQLAlchemy Lead ORM model
+    │   ├── ai_engine.py         # AIEngine + TokenBalance ORM models
+    │   ├── engine_message.py    # EngineMessage ORM model
+    │   ├── funding.py           # FundingRequest ORM model
+    │   ├── research.py          # ResearchInsight ORM model
+    │   ├── business_idea.py     # BusinessIdea ORM model
+    │   └── reward.py            # RewardTransaction ORM model
     ├── schemas/
     │   ├── user.py              # Pydantic schemas (UserCreate, UserOut, Token…)
-    │   └── lead.py              # Pydantic schemas (LeadCreate, LeadOut…)
+    │   ├── lead.py              # Pydantic schemas (LeadCreate, LeadOut…)
+    │   ├── ai_engine.py         # AIEngine schemas (Create, Update, Out)
+    │   ├── engine_message.py    # EngineMessage schemas
+    │   ├── funding.py           # FundingRequest schemas
+    │   ├── research.py          # ResearchInsight schemas
+    │   ├── business_idea.py     # BusinessIdea schemas
+    │   └── reward.py            # Reward schemas
     ├── services/
     │   ├── auth_service.py      # User lookup, creation, authentication, token issuing
     │   ├── lead_score.py        # Rule-based lead scoring (0–100)
     │   ├── lead_classifier.py   # Score → classification (hot / warm / cold)
-    │   └── lead_scraper.py      # SerpAPI-based public web scraping
+    │   ├── lead_scraper.py      # SerpAPI-based public web scraping
+    │   ├── engine_communication.py  # AI engine messaging protocol
+    │   ├── funding_strategy.py      # Autonomous funding identification & token mgmt
+    │   ├── research_service.py      # Research mechanism for funding options
+    │   └── reward_service.py        # User rewards & engagement tracking
     ├── api/
     │   ├── auth_router.py       # POST /auth/register, /auth/login, /auth/refresh
-    │   └── leads_router.py      # GET/POST /leads, GET /leads/{id}, POST /leads/search
+    │   ├── leads_router.py      # GET/POST /leads, GET /leads/{id}, POST /leads/search
+    │   ├── ai_engines_router.py     # AI engine CRUD, messaging, collaboration
+    │   ├── funding_router.py        # Funding requests, token management, analysis
+    │   ├── research_router.py       # Research insights, top opportunities, reports
+    │   ├── rewards_router.py        # Reward balance, transactions, leaderboard
+    │   └── business_ideas_router.py # Business idea submission & AI analysis
     └── utils/
         └── serpapi_client.py    # Thin HTTP wrapper around SerpAPI
 ```
@@ -61,6 +84,13 @@ backend/
 |---------|-----------------------------------------------------------------------------|
 | `users` | `id`, `email` (unique), `hashed_password`, `full_name`, `is_active`, `created_at` |
 | `leads` | `id`, `company_name`, `contact_name`, `email`, `website`, `industry`, `score`, `classification`, `source`, `notes`, `created_at` |
+| `ai_engines` | `id`, `name`, `specialization`, `status`, `token_balance`, `tokens_consumed`, `is_active`, `description`, `last_heartbeat` |
+| `engine_messages` | `id`, `sender_engine_id`, `receiver_engine_id`, `message_type`, `subject`, `body`, `is_read`, `metadata` |
+| `funding_requests` | `id`, `engine_id`, `funding_type`, `title`, `description`, `amount_requested`, `amount_secured`, `status`, `justification`, `projected_roi`, `operational_cost` |
+| `token_balances` | `id`, `engine_id`, `amount`, `transaction_type`, `description` |
+| `research_insights` | `id`, `engine_id`, `category`, `title`, `summary`, `source_url`, `viability`, `relevance_score`, `tags` |
+| `business_ideas` | `id`, `user_id`, `title`, `description`, `industry`, `target_market`, `budget_range`, `status`, `ai_analysis`, `funding_strategy` |
+| `reward_transactions` | `id`, `user_id`, `reward_type`, `tokens_earned`, `description` |
 
 Database sessions are managed per-request via a FastAPI dependency (`get_db`).
 
@@ -98,19 +128,79 @@ Database sessions are managed per-request via a FastAPI dependency (`get_db`).
 
 ## 3. Planned Modules
 
-### Phase 3 — Outreach Engine
+### Phase 3 — Outreach Engine (Implemented)
 - Message personalization AI
 - Tone selection (executive / professional / casual)
 - Follow-up generator
 - Safe manual-send workflow (all messages require human approval before sending)
 - Outreach API + React UI
 
-### Phase 4 — Proposal Generator
-- AI-powered proposal drafts
-- Scope-of-work templating
-- Pricing block builder
-- PDF export
-- Proposal API + UI
+### Phase 4 — AI Engine Collaboration & Funding (Implemented)
+- **AI Engine Management** — register, monitor, and manage multiple AI engines with different specializations (funding, market research, strategy, outreach, analytics, operations)
+- **Engine Communication Protocol** — direct and broadcast messaging between engines for sharing funding strategies, collaboration proposals, and status updates
+- **Autonomous Funding Identification** — algorithms that analyze token burn rate, estimate remaining runway, and suggest funding strategies (grants, sponsorships, partnerships, crowdfunding, subscriptions, ad revenue)
+- **Research Mechanism** — funding options discovery with viability assessment, relevance scoring, and pre-built research templates
+- **Business Idea Submission** — users submit ideas with industry preferences, budgets, and target markets; AI generates analysis and funding strategies
+- **Reward System** — token-based user engagement rewards with tier progression (Bronze/Silver/Gold/Platinum), leaderboard, and revenue models
+- **Mobile-Responsive Frontend** — all new pages use responsive design with hamburger menu navigation on mobile
+
+  **AI Engines Endpoints:**
+
+  | Method | Path | Description |
+  |--------|------|-------------|
+  | GET | `/ai-engines/` | List all registered engines |
+  | POST | `/ai-engines/` | Register a new engine |
+  | GET | `/ai-engines/{id}` | Get engine details |
+  | PATCH | `/ai-engines/{id}` | Update engine |
+  | POST | `/ai-engines/{id}/heartbeat` | Update engine heartbeat |
+  | POST | `/ai-engines/messages` | Send inter-engine message |
+  | GET | `/ai-engines/messages/history` | Get communication history |
+  | GET | `/ai-engines/{id}/messages` | Get messages for an engine |
+  | POST | `/ai-engines/{id}/broadcast-insight` | Broadcast funding insight |
+  | POST | `/ai-engines/{sender}/collaborate/{receiver}` | Propose collaboration |
+
+  **Funding Endpoints:**
+
+  | Method | Path | Description |
+  |--------|------|-------------|
+  | GET | `/funding/requests` | List funding requests |
+  | POST | `/funding/requests` | Create funding request |
+  | PATCH | `/funding/requests/{id}` | Update request status |
+  | GET | `/funding/tokens/{engine_id}/history` | Token transaction history |
+  | POST | `/funding/tokens/{engine_id}/debit` | Debit tokens |
+  | GET | `/funding/analysis/{engine_id}` | Funding needs analysis |
+
+  **Research Endpoints:**
+
+  | Method | Path | Description |
+  |--------|------|-------------|
+  | GET | `/research/insights` | List research insights |
+  | POST | `/research/insights` | Create insight |
+  | GET | `/research/top-opportunities` | Top funding opportunities |
+  | GET | `/research/report` | Generate funding report |
+  | GET | `/research/templates` | Get research templates |
+
+  **Business Ideas Endpoints:**
+
+  | Method | Path | Description |
+  |--------|------|-------------|
+  | GET | `/business-ideas/` | List business ideas |
+  | POST | `/business-ideas/` | Submit idea for AI analysis |
+  | GET | `/business-ideas/{id}` | Get idea details |
+  | PATCH | `/business-ideas/{id}` | Update idea |
+  | DELETE | `/business-ideas/{id}` | Delete idea |
+  | GET | `/business-ideas/industries/list` | Available industries |
+
+  **Rewards Endpoints:**
+
+  | Method | Path | Description |
+  |--------|------|-------------|
+  | GET | `/rewards/balance/{user_id}` | User reward balance |
+  | POST | `/rewards/award` | Award tokens |
+  | POST | `/rewards/spend` | Spend tokens |
+  | GET | `/rewards/transactions/{user_id}` | Transaction history |
+  | GET | `/rewards/leaderboard` | Top users leaderboard |
+  | GET | `/rewards/revenue-models` | Revenue model options |
 
 ### Phase 5 — Market Intelligence Engine
 - Public search trends analysis
@@ -119,16 +209,7 @@ Database sessions are managed per-request via a FastAPI dependency (`get_db`).
 - Opportunities summary
 - Market AI agent
 
-### Phase 6 — React Dashboard
-- Login UI
-- Leads table
-- Outreach UI
-- Proposal generation UI
-- Market insights UI
-- Sidebar navigation
-- API service hooks
-
-### Phase 7 — Deployment
+### Phase 6 — Deployment
 - Docker configuration
 - Production build scripts
 - Cloud deployment instructions (Render / Fly.io / Railway)
@@ -147,7 +228,8 @@ Database sessions are managed per-request via a FastAPI dependency (`get_db`).
 | Password hash  | passlib[bcrypt]                     |
 | External search| SerpAPI (public web only)           |
 | HTTP client    | httpx                               |
-| Frontend (planned) | React                           |
+| Frontend       | React + TypeScript + Vite           |
+| Mobile CSS     | Responsive inline styles + media queries |
 | Deployment (planned) | Docker + cloud PaaS           |
 
 ---

@@ -15,6 +15,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from app.core.database import Base  # noqa: E402
 import app.models.user  # noqa: E402, F401  – registers User model
 import app.models.lead  # noqa: E402, F401  – registers Lead model
+import app.models.ai_engine  # noqa: E402, F401  – registers AIEngine, TokenBalance models
+import app.models.engine_message  # noqa: E402, F401  – registers EngineMessage model
+import app.models.funding  # noqa: E402, F401  – registers FundingRequest model
+import app.models.research  # noqa: E402, F401  – registers ResearchInsight model
+import app.models.business_idea  # noqa: E402, F401  – registers BusinessIdea model
+import app.models.reward  # noqa: E402, F401  – registers RewardTransaction model
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

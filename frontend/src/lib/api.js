@@ -73,4 +73,96 @@ export const api = {
 
   generateFollowups: (lead_id, tone, service_focus) =>
     request("POST", "/outreach/followups", { lead_id, tone, service_focus }),
+
+  /** AI Engines */
+  getEngines: (activeOnly = false) =>
+    request("GET", `/ai-engines/?active_only=${activeOnly}`),
+
+  createEngine: (payload) => request("POST", "/ai-engines/", payload),
+
+  getEngine: (id) => request("GET", `/ai-engines/${id}`),
+
+  getEngineMessages: (engineId, unreadOnly = false) =>
+    request("GET", `/ai-engines/${engineId}/messages?unread_only=${unreadOnly}`),
+
+  getMessageHistory: (engineId, messageType) => {
+    const params = new URLSearchParams();
+    if (engineId) params.set("engine_id", engineId);
+    if (messageType) params.set("message_type", messageType);
+    const qs = params.toString();
+    return request("GET", `/ai-engines/messages/history${qs ? "?" + qs : ""}`);
+  },
+
+  sendEngineMessage: (payload) => request("POST", "/ai-engines/messages", payload),
+
+  /** Funding */
+  getFundingRequests: (engineId, status) => {
+    const params = new URLSearchParams();
+    if (engineId) params.set("engine_id", engineId);
+    if (status) params.set("status", status);
+    const qs = params.toString();
+    return request("GET", `/funding/requests${qs ? "?" + qs : ""}`);
+  },
+
+  createFundingRequest: (payload) => request("POST", "/funding/requests", payload),
+
+  updateFundingRequest: (id, payload) =>
+    request("PATCH", `/funding/requests/${id}`, payload),
+
+  getFundingAnalysis: (engineId) =>
+    request("GET", `/funding/analysis/${engineId}`),
+
+  getTokenHistory: (engineId) =>
+    request("GET", `/funding/tokens/${engineId}/history`),
+
+  /** Research */
+  getResearchInsights: (engineId, category) => {
+    const params = new URLSearchParams();
+    if (engineId) params.set("engine_id", engineId);
+    if (category) params.set("category", category);
+    const qs = params.toString();
+    return request("GET", `/research/insights${qs ? "?" + qs : ""}`);
+  },
+
+  getTopOpportunities: (limit = 10) =>
+    request("GET", `/research/top-opportunities?limit=${limit}`),
+
+  getFundingReport: (engineId) => {
+    const qs = engineId ? `?engine_id=${engineId}` : "";
+    return request("GET", `/research/report${qs}`);
+  },
+
+  getResearchTemplates: () => request("GET", "/research/templates"),
+
+  /** Business Ideas */
+  getBusinessIdeas: (userId, industry) => {
+    const params = new URLSearchParams();
+    if (userId) params.set("user_id", userId);
+    if (industry) params.set("industry", industry);
+    const qs = params.toString();
+    return request("GET", `/business-ideas/${qs ? "?" + qs : ""}`);
+  },
+
+  submitBusinessIdea: (payload) =>
+    request("POST", "/business-ideas/", payload),
+
+  getBusinessIdea: (id) => request("GET", `/business-ideas/${id}`),
+
+  updateBusinessIdea: (id, payload) =>
+    request("PATCH", `/business-ideas/${id}`, payload),
+
+  deleteBusinessIdea: (id) => request("DELETE", `/business-ideas/${id}`),
+
+  getIndustries: () => request("GET", "/business-ideas/industries/list"),
+
+  /** Rewards */
+  getRewardBalance: (userId) => request("GET", `/rewards/balance/${userId}`),
+
+  getRewardTransactions: (userId) =>
+    request("GET", `/rewards/transactions/${userId}`),
+
+  getLeaderboard: (limit = 10) =>
+    request("GET", `/rewards/leaderboard?limit=${limit}`),
+
+  getRevenueModels: () => request("GET", "/rewards/revenue-models"),
 };
