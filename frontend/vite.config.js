@@ -10,6 +10,11 @@ export default defineConfig({
       "/leads": "http://localhost:8000",
       "/outreach": "http://localhost:8000",
       "/health": "http://localhost:8000",
+      "/ai-engines": "http://localhost:8000",
+      "/funding": "http://localhost:8000",
+      "/research": "http://localhost:8000",
+      "/business-ideas": "http://localhost:8000",
+      "/rewards": "http://localhost:8000",
     },
   },
 });
