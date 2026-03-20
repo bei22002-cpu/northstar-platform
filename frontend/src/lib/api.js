@@ -143,8 +143,8 @@ export const api = {
     return request("GET", `/business-ideas/${qs ? "?" + qs : ""}`);
   },
 
-  submitBusinessIdea: (payload, userId) =>
-    request("POST", `/business-ideas/?user_id=${userId}`, payload),
+  submitBusinessIdea: (payload) =>
+    request("POST", "/business-ideas/", payload),
 
   getBusinessIdea: (id) => request("GET", `/business-ideas/${id}`),
 

@@ -60,7 +60,7 @@ export default function BusinessIdeas() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.submitBusinessIdea(form, 1);
+      await api.submitBusinessIdea(form);
       setForm({ title: "", description: "", industry: "technology", target_market: "", budget_range: "" });
       setShowForm(false);
       await fetchIdeas();

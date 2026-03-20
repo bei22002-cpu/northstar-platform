@@ -5,8 +5,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.ai_engine import AIEngine, EngineStatusEnum
+from app.models.user import User
 from app.schemas.ai_engine import AIEngineCreate, AIEngineOut, AIEngineUpdate
 from app.schemas.engine_message import EngineMessageCreate, EngineMessageOut
 from app.services import engine_communication
@@ -20,6 +22,7 @@ router = APIRouter(prefix="/ai-engines", tags=["AI Engines"])
 def list_engines(
     active_only: bool = Query(False),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List all registered AI engines."""
     query = db.query(AIEngine)
@@ -29,7 +32,7 @@ def list_engines(
 
 
 @router.post("/", response_model=AIEngineOut, status_code=status.HTTP_201_CREATED)
-def create_engine(payload: AIEngineCreate, db: Session = Depends(get_db)):
+def create_engine(payload: AIEngineCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Register a new AI engine."""
     existing = db.query(AIEngine).filter(AIEngine.name == payload.name).first()
     if existing:
@@ -48,7 +51,7 @@ def create_engine(payload: AIEngineCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{engine_id}", response_model=AIEngineOut)
-def get_engine(engine_id: int, db: Session = Depends(get_db)):
+def get_engine(engine_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get a specific AI engine by ID."""
     engine = db.query(AIEngine).filter(AIEngine.id == engine_id).first()
     if not engine:
@@ -57,7 +60,7 @@ def get_engine(engine_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{engine_id}", response_model=AIEngineOut)
-def update_engine(engine_id: int, payload: AIEngineUpdate, db: Session = Depends(get_db)):
+def update_engine(engine_id: int, payload: AIEngineUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Update an AI engine's properties."""
     engine = db.query(AIEngine).filter(AIEngine.id == engine_id).first()
     if not engine:
@@ -73,7 +76,7 @@ def update_engine(engine_id: int, payload: AIEngineUpdate, db: Session = Depends
 
 
 @router.post("/{engine_id}/heartbeat", response_model=AIEngineOut)
-def engine_heartbeat(engine_id: int, db: Session = Depends(get_db)):
+def engine_heartbeat(engine_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Update heartbeat timestamp for an engine."""
     try:
         return engine_communication.update_engine_heartbeat(db, engine_id)
@@ -84,7 +87,7 @@ def engine_heartbeat(engine_id: int, db: Session = Depends(get_db)):
 # ── Inter-Engine Messaging ───────────────────────────────────────────────────
 
 @router.post("/messages", response_model=EngineMessageOut, status_code=status.HTTP_201_CREATED)
-def send_message(payload: EngineMessageCreate, db: Session = Depends(get_db)):
+def send_message(payload: EngineMessageCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Send a message between AI engines."""
     try:
         return engine_communication.send_message(
@@ -105,6 +108,7 @@ def get_message_history(
     message_type: Optional[str] = Query(None),
     limit: int = Query(50, le=200),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get communication history across engines."""
     return engine_communication.get_communication_history(
@@ -117,6 +121,7 @@ def get_engine_messages(
     engine_id: int,
     unread_only: bool = Query(False),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get messages for a specific engine."""
     return engine_communication.get_messages_for_engine(
@@ -125,7 +130,7 @@ def get_engine_messages(
 
 
 @router.post("/messages/{message_id}/read", response_model=EngineMessageOut)
-def mark_read(message_id: int, db: Session = Depends(get_db)):
+def mark_read(message_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Mark a message as read."""
     try:
         return engine_communication.mark_message_read(db, message_id)
@@ -139,6 +144,7 @@ def broadcast_insight(
     title: str = Query(...),
     summary: str = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Broadcast a funding insight to all engines."""
     try:
@@ -157,6 +163,7 @@ def propose_collab(
     details: str = Query(...),
     funding_goal: Optional[float] = Query(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Send a collaboration proposal between engines."""
     try:

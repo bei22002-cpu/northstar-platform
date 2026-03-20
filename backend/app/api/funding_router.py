@@ -5,7 +5,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.models.user import User
 from app.schemas.funding import FundingRequestCreate, FundingRequestOut, FundingRequestUpdate, TokenTransactionOut
 from app.services import funding_strategy
 
@@ -19,13 +21,14 @@ def list_funding_requests(
     engine_id: Optional[int] = Query(None),
     request_status: Optional[str] = Query(None, alias="status"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List all funding requests with optional filters."""
     return funding_strategy.get_funding_requests(db, engine_id=engine_id, status=request_status)
 
 
 @router.post("/requests", response_model=FundingRequestOut, status_code=status.HTTP_201_CREATED)
-def create_funding_request(payload: FundingRequestCreate, db: Session = Depends(get_db)):
+def create_funding_request(payload: FundingRequestCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Create a new funding request from an AI engine."""
     try:
         return funding_strategy.create_funding_request(
@@ -49,6 +52,7 @@ def update_funding_request(
     request_id: int,
     payload: FundingRequestUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Update a funding request's status or secured amount."""
     try:
@@ -69,6 +73,7 @@ def get_token_history(
     engine_id: int,
     limit: int = Query(50, le=200),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get token transaction history for an engine."""
     return funding_strategy.get_token_history(db, engine_id=engine_id, limit=limit)
@@ -80,6 +85,7 @@ def debit_engine_tokens(
     amount: float = Query(..., gt=0),
     description: str = Query(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Debit tokens from an engine's balance."""
     try:
@@ -91,7 +97,7 @@ def debit_engine_tokens(
 # ── Funding Analysis ─────────────────────────────────────────────────────────
 
 @router.get("/analysis/{engine_id}")
-def analyze_engine_funding(engine_id: int, db: Session = Depends(get_db)):
+def analyze_engine_funding(engine_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Analyze funding needs and get strategy recommendations for an engine."""
     try:
         return funding_strategy.analyze_funding_needs(db, engine_id=engine_id)

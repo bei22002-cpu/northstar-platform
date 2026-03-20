@@ -1,0 +1,8 @@
+{
+  "appId": "com.northstar.platform",
+  "appName": "NorthStar",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
