@@ -10,7 +10,7 @@ from rich.panel import Panel
 
 from agent_v2.config import API_KEYS
 from agent_v2.history import SessionHistory
-from agent_v2.safety import ask_approval
+from agent_v2.safety import is_blocked, log_action
 from agent_v2.token_manager import TokenManager
 from agent_v2.tools import TOOL_DEFINITIONS, execute_tool
 
@@ -94,11 +94,20 @@ async def run_agent(user_message: str) -> None:
                 tool_name: str = block.name
                 tool_input: dict[str, Any] = block.input
 
-                approved = ask_approval(tool_name, tool_input)
-                if approved:
-                    result = execute_tool(tool_name, tool_input)
+                # Safety check — block dangerous commands
+                if tool_name == "run_command" and is_blocked(
+                    tool_input.get("command", "")
+                ):
+                    result = (
+                        "BLOCKED: This command matches a dangerous pattern "
+                        "and was not executed."
+                    )
+                    console.print(
+                        f"[bold red]BLOCKED:[/bold red] {tool_input.get('command', '')}"
+                    )
                 else:
-                    result = "User denied this action."
+                    log_action(tool_name, tool_input)
+                    result = execute_tool(tool_name, tool_input)
 
                 tool_results.append(
                     {
