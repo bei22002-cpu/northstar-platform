@@ -8,7 +8,7 @@
  * /auth, /leads, and /outreach to the FastAPI backend on localhost:8000.
  */
 
-const BASE_URL = "";
+const BASE_URL = "https://northstar-backend-wzch.onrender.com";
 
 function authHeaders() {
   const token = localStorage.getItem("access_token");
