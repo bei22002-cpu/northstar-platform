@@ -33,9 +33,6 @@ def list_insights(
 def create_insight(payload: ResearchInsightCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Record a new research insight from an AI engine."""
     try:
-def create_insight(payload: ResearchInsightCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Record a new research insight from an AI engine."""
-    try:
         return research_service.create_insight(
             db=db,
             engine_id=payload.engine_id,
@@ -48,8 +45,6 @@ def create_insight(payload: ResearchInsightCreate, db: Session = Depends(get_db)
             relevance_score=payload.relevance_score,
             actionable_steps=payload.actionable_steps,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
