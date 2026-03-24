@@ -38,8 +38,26 @@ class SessionHistory:
         self._messages.append({"role": "user", "content": results})
 
     def get_messages(self) -> list[dict[str, Any]]:
-        """Return the full message history."""
-        return list(self._messages)
+        """Return the full message history, sanitised for the API.
+
+        If the last assistant message contains ``tool_use`` blocks but no
+        matching ``tool_result`` message follows (e.g. the agent crashed
+        mid-loop), those trailing messages are stripped so the API does not
+        reject the request with a 400 error.
+        """
+        msgs = list(self._messages)
+        # Walk backwards: if the last message is an assistant message with
+        # tool_use blocks, remove it (and keep removing until we reach a
+        # valid state).
+        while msgs:
+            last = msgs[-1]
+            if last["role"] == "assistant" and _has_tool_use(last.get("content")):
+                msgs.pop()
+                # Also remove any preceding user tool_result that is now
+                # orphaned (shouldn't happen, but be safe).
+                continue
+            break
+        return msgs
 
     def clear(self) -> None:
         """Reset history for a new session."""
@@ -59,6 +77,16 @@ class SessionHistory:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _has_tool_use(content: Any) -> bool:
+    """Return True if *content* contains at least one tool_use block."""
+    if not isinstance(content, list):
+        return False
+    return any(
+        (isinstance(item, dict) and item.get("type") == "tool_use")
+        for item in content
+    )
+
 
 def _make_serializable(obj: Any) -> Any:
     """Recursively convert API objects to plain dicts/lists for JSON."""

@@ -8,6 +8,8 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
+import anthropic
+
 from agent_v2.config import API_KEYS
 from agent_v2.history import SessionHistory
 from agent_v2.safety import is_blocked, log_action
@@ -57,13 +59,30 @@ async def run_agent(user_message: str) -> None:
             f"of {token_manager.total_keys}[/dim]"
         )
 
-        response = token_manager.create_message(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            system=SYSTEM_PROMPT,
-            tools=TOOL_DEFINITIONS,
-            messages=messages,
-        )
+        try:
+            response = token_manager.create_message(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=SYSTEM_PROMPT,
+                tools=TOOL_DEFINITIONS,
+                messages=messages,
+            )
+        except anthropic.BadRequestError:
+            # History is corrupted (e.g. orphaned tool_use blocks from a
+            # previous crash).  Clear it and retry with just this message.
+            console.print(
+                "[yellow]History was corrupted — resetting and retrying.[/yellow]"
+            )
+            history.clear()
+            history.add_user(user_message)
+            messages = history.get_messages()
+            response = token_manager.create_message(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=SYSTEM_PROMPT,
+                tools=TOOL_DEFINITIONS,
+                messages=messages,
+            )
 
         # Store the raw assistant content for future context
         history.add_assistant(response.content)
