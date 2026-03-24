@@ -17,12 +17,20 @@ console = Console()
 
 def _print_banner() -> None:
     banner = Text()
-    banner.append("Cornerstone AI Agent v2\n", style="bold magenta")
+    banner.append("Cornerstone AI Agent v2 — Autonomous Mode\n", style="bold magenta")
     banner.append(f"Workspace: {WORKSPACE}\n", style="dim")
     banner.append(f"API Keys loaded: {len(API_KEYS)}\n", style="bold cyan")
     banner.append(
+        "Fully autonomous — executes tools without approval prompts.\n",
+        style="bold green",
+    )
+    banner.append(
         "Auto-rotates keys on rate limits for continuous progress.\n",
         style="dim",
+    )
+    banner.append(
+        "Dangerous commands (rm -rf /, DROP DATABASE, etc.) are still blocked.\n",
+        style="dim red",
     )
     banner.append("Type 'exit' or 'quit' to end the session.\n", style="dim")
     banner.append("Type 'keys' to see token status.", style="dim")

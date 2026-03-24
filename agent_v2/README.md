@@ -1,9 +1,9 @@
-# Cornerstone AI Agent v2 — Automatic Token Rotation
+# Cornerstone AI Agent v2 — Fully Autonomous
 
 A local AI agent powered by Claude (Anthropic) that can autonomously read,
 write, edit, and manage files and run terminal commands inside the
-Cornerstone project workspace — with a **human approval gate** before every
-action and **automatic API key rotation** for uninterrupted progress.
+Cornerstone project workspace — **fully autonomous** with no approval
+prompts and **automatic API key rotation** for uninterrupted progress.
 
 ---
 
@@ -114,14 +114,11 @@ The following patterns are blocked and will **never** execute:
 - `DROP TABLE`
 - `:(){ :|:& };:` (fork bomb)
 
-### Approval Gate
+### Autonomous Execution
 
-Before every tool call the agent displays a styled panel showing:
-
-- The tool name
-- All parameters (file content is shown as a character count)
-
-You must type **y** to approve. Anything else denies the action.
+The agent executes all tool calls automatically without prompting.
+Each action is logged to the terminal so you can see what it's doing.
+Dangerous commands are still blocked silently — no way to bypass them.
 
 ---
 
@@ -132,7 +129,9 @@ You must type **y** to approve. Anything else denies the action.
 │ Cornerstone AI Agent v2                                │
 │ Workspace: /home/user/northstar-platform/backend       │
 │ API Keys loaded: 3                                     │
+│ Fully autonomous — executes tools without approval.    │
 │ Auto-rotates keys on rate limits for continuous ...     │
+│ Dangerous commands are still blocked.                  │
 │ Type 'exit' or 'quit' to end the session.              │
 │ Type 'keys' to see token status.                       │
 ╰────────────────────────────────────────────────────────╯
@@ -146,11 +145,10 @@ Using API key #1 of 3
 │ existing main.py to understand the current structure.   │
 ╰────────────────────────────────────────────────────────╯
 
-╭─ AI wants to perform an action ───────────────────────╮
+╭─ Executing ───────────────────────────────────────────╮
 │ Tool: read_file                                        │
 │ filepath: app/main.py                                  │
 ╰────────────────────────────────────────────────────────╯
-Approve? (y/n): y
 
 Key #1 rate-limited. Rotating to next key...
 Using API key #2 of 3
@@ -170,7 +168,7 @@ agent_v2/
 ├── __init__.py        # Package marker
 ├── main.py            # CLI entry point with key stats dashboard
 ├── tools.py           # 8 tool implementations + schema definitions
-├── safety.py          # Blocked-command list & approval gate
+├── safety.py          # Blocked-command list & action logging
 ├── config.py          # Multi-key .env loader & validation
 ├── token_manager.py   # Automatic API key rotation engine
 ├── session.py         # Claude API interaction with token rotation
