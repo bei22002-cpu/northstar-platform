@@ -38,11 +38,10 @@ class SessionHistory:
         self._messages.append({"role": "user", "content": results})
 
     def get_messages(self) -> list[dict[str, Any]]:
-        """Return the full message history, sanitised for the API."""
-        self._sanitize()
+        """Return the full message history."""
         return list(self._messages)
 
-    def _sanitize(self) -> None:
+    def sanitize(self) -> None:
         """Ensure every assistant ``tool_use`` block has a matching ``tool_result``.
 
         If an assistant message contains ``tool_use`` blocks but the very next
