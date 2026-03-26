@@ -33,7 +33,21 @@ app = FastAPI(title=APP_NAME, docs_url="/api/docs")
 
 _base = Path(__file__).resolve().parent
 app.mount("/static", StaticFiles(directory=str(_base / "static")), name="static")
-templates = Jinja2Templates(directory=str(_base / "templates"))
+_templates = Jinja2Templates(directory=str(_base / "templates"))
+
+
+def _render(request: Request, name: str, context: dict, status_code: int = 200):
+    """Render a template — compatible with both Starlette <0.28 and >=1.0."""
+    import inspect
+    sig = inspect.signature(_templates.TemplateResponse)
+    params = list(sig.parameters.keys())
+    # Starlette >=1.0: first positional param is 'request'
+    # Starlette <0.28: first positional param is 'name'
+    if params and params[0] == "request":
+        return _templates.TemplateResponse(request, name, context, status_code=status_code)
+    else:
+        context["request"] = request
+        return _templates.TemplateResponse(name, context, status_code=status_code)
 
 
 @app.on_event("startup")
@@ -96,7 +110,7 @@ async def landing(request: Request, db: Session = Depends(get_db),
     user = None
     if token:
         user = auth_module.get_user_from_token(db, token)
-    return templates.TemplateResponse(request, "landing.html", {
+    return _render(request, "landing.html", {
         "app_name": APP_NAME, "user": user, "plans": PLANS,
     })
 
@@ -107,7 +121,7 @@ async def pricing(request: Request, db: Session = Depends(get_db),
     user = None
     if token:
         user = auth_module.get_user_from_token(db, token)
-    return templates.TemplateResponse(request, "pricing.html", {
+    return _render(request, "pricing.html", {
         "app_name": APP_NAME, "user": user, "plans": PLANS,
     })
 
@@ -116,7 +130,7 @@ async def pricing(request: Request, db: Session = Depends(get_db),
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, error: str = ""):
-    return templates.TemplateResponse(request, "login.html", {
+    return _render(request, "login.html", {
         "app_name": APP_NAME, "error": error,
     })
 
@@ -130,7 +144,7 @@ async def login_submit(
 ):
     user, error = auth_module.login_user(db, email, password)
     if error:
-        return templates.TemplateResponse(request, "login.html", {
+        return _render(request, "login.html", {
             "app_name": APP_NAME, "error": error,
         }, status_code=400)
 
@@ -142,7 +156,7 @@ async def login_submit(
 
 @app.get("/signup", response_class=HTMLResponse)
 async def signup_page(request: Request, error: str = ""):
-    return templates.TemplateResponse(request, "signup.html", {
+    return _render(request, "signup.html", {
         "app_name": APP_NAME, "error": error,
     })
 
@@ -157,7 +171,7 @@ async def signup_submit(
 ):
     user, error = auth_module.signup_user(db, email, password, name)
     if error:
-        return templates.TemplateResponse(request, "signup.html", {
+        return _render(request, "signup.html", {
             "app_name": APP_NAME, "error": error,
         }, status_code=400)
 
@@ -206,7 +220,7 @@ async def dashboard(
         .scalar() or 0
     )
 
-    return templates.TemplateResponse(request, "dashboard.html", {
+    return _render(request, "dashboard.html", {
         "app_name": APP_NAME,
         "user": user,
         "plan_info": plan_info,
@@ -254,7 +268,7 @@ async def chat_page(
                 .all()
             )
 
-    return templates.TemplateResponse(request, "chat.html", {
+    return _render(request, "chat.html", {
         "app_name": APP_NAME,
         "user": user,
         "plan_info": plan_info,
@@ -360,7 +374,7 @@ async def billing_checkout(
 
 @app.get("/billing/success")
 async def billing_success(request: Request, session_id: str = ""):
-    return templates.TemplateResponse(request, "billing_success.html", {
+    return _render(request, "billing_success.html", {
         "app_name": APP_NAME,
     })
 
@@ -421,7 +435,7 @@ async def admin_page(
         .all()
     )
 
-    return templates.TemplateResponse(request, "admin.html", {
+    return _render(request, "admin.html", {
         "app_name": APP_NAME,
         "user": user,
         "total_users": total_users,
