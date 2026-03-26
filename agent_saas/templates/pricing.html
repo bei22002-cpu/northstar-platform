@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing — {{ app_name }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">{{ app_name }}</a>
+        <div class="navbar-links">
+            <a href="/pricing">Pricing</a>
+            {% if user %}
+                <a href="/chat">Chat</a>
+                <a href="/dashboard">Dashboard</a>
+                <a href="/logout" class="btn btn-outline btn-sm">Logout</a>
+            {% else %}
+                <a href="/login">Login</a>
+                <a href="/signup" class="btn btn-primary btn-sm">Get Started</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <section style="text-align:center; padding: 3rem 2rem 1rem;">
+        <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem;">Simple, Transparent Pricing</h1>
+        <p class="text-dim" style="font-size: 1.1rem;">Start free. Upgrade when you need more power.</p>
+    </section>
+
+    <section class="pricing-grid">
+        <!-- Free -->
+        <div class="pricing-card">
+            <h3>Free</h3>
+            <p class="text-dim">Get started with AI chat</p>
+            <div class="pricing-price">$0<span>/mo</span></div>
+            <ul class="pricing-features">
+                {% for f in plans.free.features %}
+                <li>{{ f }}</li>
+                {% endfor %}
+            </ul>
+            {% if user %}
+                {% if user.plan == 'free' %}
+                    <span class="btn btn-outline" style="cursor:default;">Current Plan</span>
+                {% else %}
+                    <span class="btn btn-outline text-dim" style="cursor:default;">Downgrade via billing portal</span>
+                {% endif %}
+            {% else %}
+                <a href="/signup" class="btn btn-outline" style="width:100%; justify-content:center;">Sign Up Free</a>
+            {% endif %}
+        </div>
+
+        <!-- Pro -->
+        <div class="pricing-card featured">
+            <div class="pricing-badge">MOST POPULAR</div>
+            <h3>Pro</h3>
+            <p class="text-dim">For serious developers</p>
+            <div class="pricing-price">$29<span>/mo</span></div>
+            <ul class="pricing-features">
+                {% for f in plans.pro.features %}
+                <li>{{ f }}</li>
+                {% endfor %}
+            </ul>
+            {% if user %}
+                {% if user.plan == 'pro' %}
+                    <span class="btn btn-primary" style="cursor:default; width:100%; justify-content:center;">Current Plan</span>
+                {% else %}
+                    <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="upgrade('pro')">Upgrade to Pro</button>
+                {% endif %}
+            {% else %}
+                <a href="/signup" class="btn btn-primary" style="width:100%; justify-content:center;">Start Free Trial</a>
+            {% endif %}
+        </div>
+
+        <!-- Enterprise -->
+        <div class="pricing-card">
+            <h3>Enterprise</h3>
+            <p class="text-dim">Maximum power & features</p>
+            <div class="pricing-price">$99<span>/mo</span></div>
+            <ul class="pricing-features">
+                {% for f in plans.enterprise.features %}
+                <li>{{ f }}</li>
+                {% endfor %}
+            </ul>
+            {% if user %}
+                {% if user.plan == 'enterprise' %}
+                    <span class="btn btn-outline" style="cursor:default; width:100%; justify-content:center;">Current Plan</span>
+                {% else %}
+                    <button class="btn btn-outline" style="width:100%; justify-content:center;" onclick="upgrade('enterprise')">Upgrade to Enterprise</button>
+                {% endif %}
+            {% else %}
+                <a href="/signup" class="btn btn-outline" style="width:100%; justify-content:center;">Start Free Trial</a>
+            {% endif %}
+        </div>
+    </section>
+
+    <footer class="footer">
+        <p>&copy; 2026 {{ app_name }}. All plans include conversation history and safety features.</p>
+    </footer>
+
+    <script>
+    async function upgrade(plan) {
+        try {
+            const res = await fetch('/api/billing/checkout', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({plan}),
+            });
+            const data = await res.json();
+            if (data.checkout_url) {
+                window.location.href = data.checkout_url;
+            } else if (data.error) {
+                alert(data.error);
+            }
+        } catch (e) {
+            alert('Failed to start checkout. Please try again.');
+        }
+    }
+    </script>
+</body>
+</html>

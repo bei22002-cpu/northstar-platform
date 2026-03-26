@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — {{ app_name }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">{{ app_name }}</a>
+        <div class="navbar-links">
+            <a href="/chat">Chat</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/pricing">Pricing</a>
+            {% if user.is_admin %}<a href="/admin">Admin</a>{% endif %}
+            <a href="/logout" class="btn btn-outline btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <div class="dashboard">
+        <h1>Dashboard</h1>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Plan</div>
+                <div class="stat-value primary">{{ user.plan|title }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Tokens Used This Month</div>
+                <div class="stat-value">{{ "{:,}".format(user.tokens_used_this_month) }}</div>
+                <div class="progress-bar">
+                    {% set pct = (user.tokens_used_this_month / plan_info.monthly_tokens * 100) if plan_info.monthly_tokens > 0 else 0 %}
+                    <div class="progress-fill" style="width: {{ pct|round(1) }}%"></div>
+                </div>
+                <div class="text-dim mt-1" style="font-size:0.8rem;">
+                    {{ "{:,}".format(plan_info.monthly_tokens - user.tokens_used_this_month) }} remaining of {{ "{:,}".format(plan_info.monthly_tokens) }}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total API Cost</div>
+                <div class="stat-value warning">${{ total_cost }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Conversations</div>
+                <div class="stat-value">{{ conversation_count }}</div>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:1rem; margin-bottom:2rem;">
+            <a href="/chat" class="btn btn-primary">Open Chat</a>
+            {% if user.plan == 'free' %}
+                <a href="/pricing" class="btn btn-outline">Upgrade Plan</a>
+            {% elif stripe_configured and user.stripe_customer_id %}
+                <a href="/api/billing/portal" class="btn btn-outline">Manage Billing</a>
+            {% endif %}
+        </div>
+
+        {% if usage_records %}
+        <div class="card">
+            <div class="card-header">Recent Usage</div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Model</th>
+                            <th>Input Tokens</th>
+                            <th>Output Tokens</th>
+                            <th>Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rec in usage_records %}
+                        <tr>
+                            <td>{{ rec.created_at.strftime('%b %d, %H:%M') if rec.created_at else '-' }}</td>
+                            <td>{{ rec.model.split('-')[-1] if rec.model else '-' }}</td>
+                            <td>{{ "{:,}".format(rec.input_tokens) }}</td>
+                            <td>{{ "{:,}".format(rec.output_tokens) }}</td>
+                            <td>${{ "%.4f"|format(rec.cost_usd) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h3>No usage yet</h3>
+            <p>Start chatting to see your usage statistics here.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
