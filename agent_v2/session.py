@@ -52,6 +52,11 @@ async def run_agent(user_message: str) -> None:
     messages = history.get_messages()
 
     while True:
+        # Repair any orphaned tool_use blocks left over from a previous
+        # interrupted turn before we send messages to the API.
+        history.sanitize()
+        messages = history.get_messages()
+
         console.print(
             f"[dim]Using API key #{token_manager.active_key_index} "
             f"of {token_manager.total_keys}[/dim]"
