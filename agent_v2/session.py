@@ -80,20 +80,25 @@ async def run_agent(user_message: str) -> None:
                     )
                 )
 
-        # If the model is done talking, break
-        if response.stop_reason == "end_turn":
+        # Collect any tool_use blocks regardless of stop_reason.
+        # This prevents orphaned tool_use entries when stop_reason is
+        # "max_tokens" or another unexpected value.
+        tool_use_blocks = [
+            b for b in response.content if getattr(b, "type", None) == "tool_use"
+        ]
+
+        if not tool_use_blocks:
+            # No tools requested — we are done with this turn.
             break
 
-        # Handle tool_use blocks
-        if response.stop_reason == "tool_use":
-            tool_results: list[dict[str, Any]] = []
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
+        # Process every tool_use block and guarantee that a matching
+        # tool_result is always appended, even if execution fails.
+        tool_results: list[dict[str, Any]] = []
+        for block in tool_use_blocks:
+            tool_name: str = block.name
+            tool_input: dict[str, Any] = block.input
 
-                tool_name: str = block.name
-                tool_input: dict[str, Any] = block.input
-
+            try:
                 # Safety check — block dangerous commands
                 if tool_name == "run_command" and is_blocked(
                     tool_input.get("command", "")
@@ -108,17 +113,24 @@ async def run_agent(user_message: str) -> None:
                 else:
                     log_action(tool_name, tool_input)
                     result = execute_tool(tool_name, tool_input)
-
-                tool_results.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    }
+            except Exception as exc:
+                result = f"Error executing tool: {exc}"
+                console.print(
+                    f"[bold red]Tool error ({tool_name}):[/bold red] {exc}"
                 )
 
-            history.add_tool_results(tool_results)
-            messages = history.get_messages()
-        else:
-            # Unexpected stop reason — break to avoid infinite loops
+            tool_results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result,
+                }
+            )
+
+        history.add_tool_results(tool_results)
+        messages = history.get_messages()
+
+        # If the original stop_reason was not "tool_use" (e.g. "max_tokens"),
+        # do not loop back for another API call — the turn is over.
+        if response.stop_reason != "tool_use":
             break
