@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cornerstone AI Agent v4</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d2e;
+    --surface2: #232738;
+    --border: #2e3348;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --accent: #6366f1;
+    --accent-glow: rgba(99, 102, 241, 0.2);
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --magenta: #a855f7;
+    --cyan: #06b6d4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 15px;
+    color: var(--magenta);
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  header .badge {
+    font-size: 10px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 600;
+  }
+  header .status {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: auto;
+  }
+  .controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .controls select, .controls button {
+    background: var(--surface2);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .controls button:hover { color: var(--accent); border-color: var(--accent); }
+  .controls select:focus { outline: none; border-color: var(--accent); }
+
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  #chat::-webkit-scrollbar { width: 6px; }
+  #chat::-webkit-scrollbar-track { background: transparent; }
+  #chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .msg {
+    max-width: 80%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .msg.user {
+    align-self: flex-end;
+    background: var(--accent);
+    color: white;
+    border-bottom-right-radius: 2px;
+  }
+  .msg.assistant {
+    align-self: flex-start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 2px;
+  }
+  .msg.system {
+    align-self: center;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 11px;
+    border: 1px dashed var(--border);
+    padding: 5px 12px;
+    border-radius: 99px;
+  }
+  .msg.tool-call {
+    align-self: flex-start;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    font-size: 11px;
+    color: var(--green);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+  .msg.tool-result {
+    align-self: flex-start;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+    max-height: 180px;
+    overflow-y: auto;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+  .msg.blocked {
+    align-self: flex-start;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: var(--red);
+    font-size: 11px;
+  }
+  .msg.cost-info {
+    align-self: center;
+    background: rgba(234, 179, 8, 0.08);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    color: var(--yellow);
+    font-size: 11px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  #input-area {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  #input-area input {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 16px;
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #input-area input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  #input-area input::placeholder { color: var(--text-dim); }
+  #input-area button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 22px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  #input-area button:hover { opacity: 0.85; }
+  #input-area button:disabled { opacity: 0.3; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Cornerstone AI Agent v4</h1>
+  <span class="badge">RAG + Multi-Agent</span>
+  <div class="controls">
+    <select id="model-select">
+      <option value="sonnet">Sonnet</option>
+      <option value="opus">Opus</option>
+      <option value="haiku">Haiku</option>
+    </select>
+    <button onclick="sendCommand('cost')">Cost</button>
+    <button onclick="sendCommand('keys')">Keys</button>
+    <button onclick="sendCommand('memory')">Memory</button>
+  </div>
+  <span class="status" id="status">Connecting...</span>
+</header>
+
+<div id="chat"></div>
+
+<div id="input-area">
+  <input type="text" id="user-input" placeholder="Ask the agent anything..." autocomplete="off" />
+  <button id="send-btn" onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+const chat = document.getElementById('chat');
+const input = document.getElementById('user-input');
+const sendBtn = document.getElementById('send-btn');
+const statusEl = document.getElementById('status');
+const modelSelect = document.getElementById('model-select');
+let ws;
+let busy = false;
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws/chat`);
+
+  ws.onopen = () => {
+    statusEl.textContent = 'Connected';
+    statusEl.style.color = '#22c55e';
+  };
+
+  ws.onclose = () => {
+    statusEl.textContent = 'Disconnected';
+    statusEl.style.color = '#ef4444';
+    setTimeout(connect, 2000);
+  };
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    handleMessage(msg);
+  };
+}
+
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'assistant':
+      addMsg('assistant', msg.text);
+      break;
+    case 'system':
+      addMsg('system', msg.text);
+      break;
+    case 'tool_call':
+      const inputStr = Object.entries(msg.input || {})
+        .map(([k, v]) => `${k}: ${typeof v === 'string' && v.length > 100 ? `(${v.length} chars)` : v}`)
+        .join('\n');
+      addMsg('tool-call', `> ${msg.tool}\n${inputStr}`);
+      break;
+    case 'tool_result':
+      addMsg('tool-result', `${msg.tool}:\n${msg.result}`);
+      break;
+    case 'blocked':
+      addMsg('blocked', msg.reason);
+      break;
+    case 'cost':
+      addMsg('cost-info', msg.text);
+      break;
+    case 'keys':
+      const rows = (msg.stats || []).map(s =>
+        `#${s.key_number} ${s.masked_key} | calls:${s.calls} err:${s.errors} rl:${s.rate_limited ? 'Y' : 'N'} cd:${s.cooldown_remaining}s`
+      ).join('\n');
+      addMsg('cost-info', rows);
+      break;
+    case 'status':
+      statusEl.textContent = msg.text;
+      break;
+    case 'done':
+      busy = false;
+      sendBtn.disabled = false;
+      input.disabled = false;
+      input.focus();
+      break;
+    case 'error':
+      addMsg('blocked', `Error: ${msg.text}`);
+      busy = false;
+      sendBtn.disabled = false;
+      input.disabled = false;
+      break;
+  }
+}
+
+function addMsg(cls, text) {
+  const div = document.createElement('div');
+  div.className = `msg ${cls}`;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function sendMessage() {
+  const text = input.value.trim();
+  if (!text || busy) return;
+  addMsg('user', text);
+  ws.send(JSON.stringify({ type: 'chat', text }));
+  input.value = '';
+  busy = true;
+  sendBtn.disabled = true;
+  input.disabled = true;
+}
+
+function sendCommand(type) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type }));
+}
+
+modelSelect.addEventListener('change', () => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'model_switch', model: modelSelect.value }));
+});
+
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendMessage();
+});
+
+connect();
+</script>
+</body>
+</html>
