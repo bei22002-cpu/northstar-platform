@@ -367,3 +367,36 @@ export const getLeaderboard = (limit = 10) =>
 
 export const getRevenueModels = () =>
   api.get('/rewards/revenue-models').then((r) => r.data);
+
+// ─── Cornerstone AI Agent ────────────────────────────────────────────────────
+
+export interface AgentToolAction {
+  tool: string;
+  input: Record<string, any>;
+  output: string;
+}
+
+export interface AgentChatResponse {
+  response: string;
+  tool_actions: AgentToolAction[];
+  history: Array<Record<string, any>>;
+}
+
+export interface AgentInfo {
+  name: string;
+  description: string;
+  workspace: string;
+  tools: string[];
+  status: string;
+}
+
+export const sendAgentMessage = (
+  message: string,
+  history?: Array<Record<string, any>>,
+) =>
+  api
+    .post<AgentChatResponse>('/agent/chat', { message, history })
+    .then((r) => r.data);
+
+export const getAgentInfo = () =>
+  api.get<AgentInfo>('/agent/info').then((r) => r.data);
