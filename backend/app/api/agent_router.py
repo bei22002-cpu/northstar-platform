@@ -309,9 +309,14 @@ def approve_tools(
 ):
     """Approve or reject pending tool executions."""
     if not payload.approved:
-        return {"status": "rejected", "results": []}
+        return {"status": "rejected", "response": "Actions cancelled.", "tool_actions": [], "results": []}
     results = execute_approved_tools(payload.approvals)
-    return {"status": "approved", "results": results}
+    # Build a summary response from tool results
+    summary_parts = []
+    for r in results:
+        summary_parts.append(f"Executed {r['tool']}: {r['output'][:200]}")
+    response_text = "\n".join(summary_parts) if summary_parts else "Actions approved and executed."
+    return {"status": "approved", "response": response_text, "tool_actions": results, "results": results}
 
 
 @router.get("/info", response_model=AgentInfoResponse)
@@ -430,13 +435,32 @@ def get_analytics(
     # Active users (org-wide)
     active_users = db.query(sqlfunc.count(sqlfunc.distinct(AgentAuditLog.user_id))).scalar() or 0
 
+    # Compute messages_by_day (last 30 days)
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    thirty_days_ago = now - timedelta(days=30)
+    daily_rows = (
+        db.query(
+            sqlfunc.cast(AgentAuditLog.created_at, sqlfunc.text()).label("day"),
+            sqlfunc.count(AgentAuditLog.id).label("cnt"),
+        )
+        .filter(
+            AgentAuditLog.user_id == current_user.id,
+            AgentAuditLog.created_at >= thirty_days_ago,
+        )
+        .group_by("day")
+        .order_by("day")
+        .all()
+    )
+    messages_by_day = [{"date": str(row.day)[:10], "count": row.cnt} for row in daily_rows]
+
     return AnalyticsResponse(
         total_messages=total_messages,
         total_tool_executions=total_tool_executions,
         total_tokens=total_tokens,
         avg_latency_ms=round(float(avg_latency), 1),
         messages_by_provider=messages_by_provider,
-        messages_by_day=[],
+        messages_by_day=messages_by_day,
         top_tools=top_tools,
         active_users=active_users,
     )
@@ -596,4 +620,18 @@ def update_platform_settings(
     for key, value in update_data.items():
         setattr(settings, key, value)
     db.commit()
-    return {"status": "updated"}
+    db.refresh(settings)
+    return PlatformSettingsResponse(
+        platform_name=settings.platform_name or "NorthStar",
+        tagline=settings.tagline or "AI-Powered Consulting Platform",
+        logo_url=settings.logo_url,
+        favicon_url=settings.favicon_url,
+        primary_color=settings.primary_color or "#3182ce",
+        accent_color=settings.accent_color or "#805ad5",
+        sidebar_bg=settings.sidebar_bg or "#1a202c",
+        sidebar_text=settings.sidebar_text or "#90cdf4",
+        custom_css=settings.custom_css,
+        support_email=settings.support_email,
+        enable_marketplace=settings.enable_marketplace if settings.enable_marketplace is not None else True,
+        enable_analytics=settings.enable_analytics if settings.enable_analytics is not None else True,
+    )

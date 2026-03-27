@@ -77,7 +77,7 @@ export default function CornerstoneAgent() {
               if (data === "[DONE]") break;
               try {
                 const parsed = JSON.parse(data);
-                if (parsed.token) { fullText += parsed.token; setStreamingText(fullText); }
+                if (parsed.token || parsed.content) { fullText += (parsed.token || parsed.content); setStreamingText(fullText); }
                 if (parsed.tool_actions) {
                   setMessages((prev) => [...prev, { id: nextId.current++, role: "assistant", content: fullText || parsed.response || "", toolActions: parsed.tool_actions, tokens: parsed.tokens, timestamp: new Date() }]);
                   if (parsed.history) setHistory(parsed.history);
@@ -96,7 +96,7 @@ export default function CornerstoneAgent() {
           setPendingApprovals(res.pending_approvals);
           setMessages((prev) => [...prev, { id: nextId.current++, role: "assistant", content: "I need your approval to perform the following actions:", toolActions: res.tool_actions, pendingApprovals: res.pending_approvals, timestamp: new Date() }]);
         } else {
-          setMessages((prev) => [...prev, { id: nextId.current++, role: "assistant", content: res.response, toolActions: res.tool_actions, tokens: res.tokens, timestamp: new Date() }]);
+          setMessages((prev) => [...prev, { id: nextId.current++, role: "assistant", content: res.response, toolActions: res.tool_actions, tokens: res.tokens_input != null ? { input_tokens: res.tokens_input, output_tokens: res.tokens_output } : res.tokens, timestamp: new Date() }]);
           setHistory(res.history);
         }
       }

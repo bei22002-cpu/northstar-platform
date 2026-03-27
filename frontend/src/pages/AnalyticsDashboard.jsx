@@ -25,8 +25,13 @@ export default function AnalyticsDashboard() {
 
   if (loading) return <div style={{ padding: 32, textAlign: "center", color: "#718096" }}>Loading analytics...</div>;
 
-  const stats = analytics || { total_messages: 0, total_tokens: 0, avg_latency_ms: 0, messages_today: 0, tool_usage: {}, model_usage: {}, daily_messages: [] };
-  const maxDaily = Math.max(1, ...((stats.daily_messages || []).map((d) => d.count)));
+  const stats = analytics || { total_messages: 0, total_tokens: 0, avg_latency_ms: 0, messages_today: 0, tool_usage: {}, model_usage: {}, daily_messages: [], messages_by_day: [], top_tools: [], messages_by_provider: {} };
+  // Support both field name conventions
+  const dailyMessages = stats.daily_messages || stats.messages_by_day || [];
+  const toolUsage = stats.tool_usage || (stats.top_tools ? Object.fromEntries((stats.top_tools || []).map(t => [t.tool, t.count])) : {});
+  const modelUsage = stats.model_usage || stats.messages_by_provider || {};
+  const messagesToday = stats.messages_today ?? stats.total_messages ?? 0;
+  const maxDaily = Math.max(1, ...(dailyMessages.map((d) => d.count)));
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: 16 }}>
@@ -40,7 +45,7 @@ export default function AnalyticsDashboard() {
           <p style={statLabel}>Total Messages</p>
         </div>
         <div style={{ ...cardStyle, ...statStyle }}>
-          <p style={statValue}>{stats.messages_today}</p>
+          <p style={statValue}>{messagesToday}</p>
           <p style={statLabel}>Messages Today</p>
         </div>
         <div style={{ ...cardStyle, ...statStyle }}>
@@ -57,13 +62,13 @@ export default function AnalyticsDashboard() {
       <div style={{ ...cardStyle, marginBottom: 24 }}>
         <h3 style={{ margin: "0 0 16px", color: "#2d3748", fontSize: 16 }}>Messages per Day</h3>
         <div style={{ display: "flex", gap: 4, alignItems: "flex-end", height: 120 }}>
-          {(stats.daily_messages || []).map((d, i) => (
+          {dailyMessages.map((d, i) => (
             <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
               <div style={{ width: "100%", maxWidth: 40, background: "#3182ce", borderRadius: "4px 4px 0 0", height: Math.max(4, (d.count / maxDaily) * 100) }} />
               <span style={{ fontSize: 9, color: "#a0aec0", marginTop: 4 }}>{d.date?.slice(5) || ""}</span>
             </div>
           ))}
-          {(!stats.daily_messages || stats.daily_messages.length === 0) && <p style={{ color: "#a0aec0", fontSize: 13, margin: "auto" }}>No data yet</p>}
+          {dailyMessages.length === 0 && <p style={{ color: "#a0aec0", fontSize: 13, margin: "auto" }}>No data yet</p>}
         </div>
       </div>
 
@@ -71,8 +76,8 @@ export default function AnalyticsDashboard() {
         {/* Tool usage */}
         <div style={{ ...cardStyle, flex: 1, minWidth: 280 }}>
           <h3 style={{ margin: "0 0 16px", color: "#2d3748", fontSize: 16 }}>Tool Usage</h3>
-          {Object.entries(stats.tool_usage || {}).sort((a, b) => b[1] - a[1]).map(([tool, count]) => {
-            const max = Math.max(1, ...Object.values(stats.tool_usage || {}));
+          {Object.entries(toolUsage).sort((a, b) => b[1] - a[1]).map(([tool, count]) => {
+            const max = Math.max(1, ...Object.values(toolUsage));
             return (
               <div key={tool} style={{ marginBottom: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 2 }}>
@@ -83,14 +88,14 @@ export default function AnalyticsDashboard() {
               </div>
             );
           })}
-          {Object.keys(stats.tool_usage || {}).length === 0 && <p style={{ color: "#a0aec0", fontSize: 13 }}>No tool usage data</p>}
+          {Object.keys(toolUsage).length === 0 && <p style={{ color: "#a0aec0", fontSize: 13 }}>No tool usage data</p>}
         </div>
 
         {/* Model usage */}
         <div style={{ ...cardStyle, flex: 1, minWidth: 280 }}>
           <h3 style={{ margin: "0 0 16px", color: "#2d3748", fontSize: 16 }}>Model Usage</h3>
-          {Object.entries(stats.model_usage || {}).sort((a, b) => b[1] - a[1]).map(([mdl, count]) => {
-            const max = Math.max(1, ...Object.values(stats.model_usage || {}));
+          {Object.entries(modelUsage).sort((a, b) => b[1] - a[1]).map(([mdl, count]) => {
+            const max = Math.max(1, ...Object.values(modelUsage));
             return (
               <div key={mdl} style={{ marginBottom: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 2 }}>
@@ -101,7 +106,7 @@ export default function AnalyticsDashboard() {
               </div>
             );
           })}
-          {Object.keys(stats.model_usage || {}).length === 0 && <p style={{ color: "#a0aec0", fontSize: 13 }}>No model usage data</p>}
+          {Object.keys(modelUsage).length === 0 && <p style={{ color: "#a0aec0", fontSize: 13 }}>No model usage data</p>}
         </div>
       </div>
 
