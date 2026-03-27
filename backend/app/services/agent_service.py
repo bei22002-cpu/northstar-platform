@@ -8,7 +8,6 @@ were executed.
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 from typing import Any
@@ -67,8 +66,16 @@ def _is_blocked(command: str) -> bool:
 # Tool implementations (sandboxed to WORKSPACE)
 # ---------------------------------------------------------------------------
 
+def _resolve_safe(path: str) -> str:
+    """Resolve *path* relative to WORKSPACE and verify it stays inside."""
+    resolved = os.path.realpath(os.path.join(WORKSPACE, path))
+    if not resolved.startswith(os.path.realpath(WORKSPACE) + os.sep) and resolved != os.path.realpath(WORKSPACE):
+        raise PermissionError(f"Path escapes workspace: {path}")
+    return resolved
+
+
 def _write_file(filepath: str, content: str) -> str:
-    full = os.path.join(WORKSPACE, filepath)
+    full = _resolve_safe(filepath)
     os.makedirs(os.path.dirname(full), exist_ok=True)
     with open(full, "w", encoding="utf-8") as fh:
         fh.write(content)
@@ -76,7 +83,7 @@ def _write_file(filepath: str, content: str) -> str:
 
 
 def _read_file(filepath: str) -> str:
-    full = os.path.join(WORKSPACE, filepath)
+    full = _resolve_safe(filepath)
     if not os.path.isfile(full):
         return f"Error: file not found \u2014 {filepath}"
     with open(full, "r", encoding="utf-8") as fh:
@@ -84,7 +91,7 @@ def _read_file(filepath: str) -> str:
 
 
 def _list_files(directory: str = ".") -> str:
-    full = os.path.join(WORKSPACE, directory)
+    full = _resolve_safe(directory)
     if not os.path.isdir(full):
         return f"Error: directory not found \u2014 {directory}"
     files: list[str] = []
@@ -112,7 +119,7 @@ def _run_command(command: str) -> str:
 
 
 def _delete_file(filepath: str) -> str:
-    full = os.path.join(WORKSPACE, filepath)
+    full = _resolve_safe(filepath)
     if not os.path.isfile(full):
         return f"Error: file not found \u2014 {filepath}"
     os.remove(full)
@@ -120,13 +127,13 @@ def _delete_file(filepath: str) -> str:
 
 
 def _create_directory(directory: str) -> str:
-    full = os.path.join(WORKSPACE, directory)
+    full = _resolve_safe(directory)
     os.makedirs(full, exist_ok=True)
     return f"Successfully created directory {directory}"
 
 
 def _search_in_files(pattern: str, directory: str = ".") -> str:
-    full = os.path.join(WORKSPACE, directory)
+    full = _resolve_safe(directory)
     if not os.path.isdir(full):
         return f"Error: directory not found \u2014 {directory}"
     matches: list[str] = []
