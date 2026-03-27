@@ -337,48 +337,62 @@ def run_agent_chat(
     tool_actions: list[dict[str, Any]] = []
     assistant_text_parts: list[str] = []
 
-    # Agent loop (max 10 iterations to prevent runaway loops)
-    for _ in range(10):
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            system=SYSTEM_PROMPT,
-            tools=TOOL_DEFINITIONS,
-            messages=messages,
-        )
+    try:
+        # Agent loop (max 10 iterations to prevent runaway loops)
+        for _ in range(10):
+            response = client.messages.create(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=SYSTEM_PROMPT,
+                tools=TOOL_DEFINITIONS,
+                messages=messages,
+            )
 
-        serialized_content = _make_serializable(response.content)
-        messages.append({"role": "assistant", "content": serialized_content})
+            serialized_content = _make_serializable(response.content)
+            messages.append({"role": "assistant", "content": serialized_content})
 
-        # Collect text blocks
-        for block in response.content:
-            if hasattr(block, "text"):
-                assistant_text_parts.append(block.text)
-
-        if response.stop_reason == "end_turn":
-            break
-
-        if response.stop_reason == "tool_use":
-            tool_results: list[dict[str, Any]] = []
+            # Collect text blocks
             for block in response.content:
-                if block.type != "tool_use":
-                    continue
+                if hasattr(block, "text"):
+                    assistant_text_parts.append(block.text)
 
-                result = _execute_tool(block.name, block.input)
-                tool_actions.append({
-                    "tool": block.name,
-                    "input": block.input,
-                    "output": result[:2000],
-                })
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result,
-                })
+            if response.stop_reason == "end_turn":
+                break
 
-            messages.append({"role": "user", "content": tool_results})
-        else:
-            break
+            if response.stop_reason == "tool_use":
+                tool_results: list[dict[str, Any]] = []
+                for block in response.content:
+                    if block.type != "tool_use":
+                        continue
+
+                    result = _execute_tool(block.name, block.input)
+                    tool_actions.append({
+                        "tool": block.name,
+                        "input": block.input,
+                        "output": result[:2000],
+                    })
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
+
+                messages.append({"role": "user", "content": tool_results})
+            else:
+                break
+    except anthropic.AuthenticationError:
+        return {
+            "response": "Authentication failed. The ANTHROPIC_API_KEY is invalid or expired. "
+                        "Please check your API key and try again.",
+            "tool_actions": tool_actions,
+            "history": history or [],
+        }
+    except anthropic.APIError as exc:
+        return {
+            "response": f"An error occurred while communicating with the AI provider: {exc}",
+            "tool_actions": tool_actions,
+            "history": history or [],
+        }
 
     return {
         "response": "\n\n".join(assistant_text_parts),
