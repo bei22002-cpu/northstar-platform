@@ -437,22 +437,25 @@ def get_analytics(
 
     # Compute messages_by_day (last 30 days)
     from datetime import timedelta
+    from collections import Counter
     now = datetime.now(timezone.utc)
     thirty_days_ago = now - timedelta(days=30)
-    daily_rows = (
-        db.query(
-            sqlfunc.cast(AgentAuditLog.created_at, sqlfunc.text()).label("day"),
-            sqlfunc.count(AgentAuditLog.id).label("cnt"),
-        )
+    recent_logs = (
+        db.query(AgentAuditLog.created_at)
         .filter(
             AgentAuditLog.user_id == current_user.id,
             AgentAuditLog.created_at >= thirty_days_ago,
         )
-        .group_by("day")
-        .order_by("day")
         .all()
     )
-    messages_by_day = [{"date": str(row.day)[:10], "count": row.cnt} for row in daily_rows]
+    day_counter: Counter[str] = Counter()
+    for (ts,) in recent_logs:
+        if ts:
+            day_counter[str(ts)[:10]] += 1
+    messages_by_day = sorted(
+        [{"date": d, "count": c} for d, c in day_counter.items()],
+        key=lambda x: x["date"],
+    )
 
     return AnalyticsResponse(
         total_messages=total_messages,
