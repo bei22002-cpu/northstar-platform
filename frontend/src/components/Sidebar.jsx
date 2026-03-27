@@ -7,6 +7,7 @@ const navItems = [
   { to: "/ai-engines", label: "AI Engines" },
   { to: "/funding", label: "Funding Tracker" },
   { to: "/rewards", label: "Rewards" },
+  { to: "/agent", label: "Cornerstone Agent" },
 ];
 
 const linkStyle = {

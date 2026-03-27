@@ -8,6 +8,7 @@ import { BusinessIdeasPage } from './pages/BusinessIdeasPage';
 import { AIEnginesPage } from './pages/AIEnginesPage';
 import { FundingTrackerPage } from './pages/FundingTrackerPage';
 import { RewardsPage } from './pages/RewardsPage';
+import { CornerstoneAgentPage } from './pages/CornerstoneAgentPage';
 import { Sidebar } from './components/Sidebar';
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
             <Route path="/ai-engines" element={<AIEnginesPage />} />
             <Route path="/funding" element={<FundingTrackerPage />} />
             <Route path="/rewards" element={<RewardsPage />} />
+            <Route path="/agent" element={<CornerstoneAgentPage />} />
           </Routes>
         </main>
       </div>

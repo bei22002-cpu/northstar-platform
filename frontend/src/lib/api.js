@@ -165,4 +165,10 @@ export const api = {
     request("GET", `/rewards/leaderboard?limit=${limit}`),
 
   getRevenueModels: () => request("GET", "/rewards/revenue-models"),
+
+  /** Cornerstone AI Agent */
+  sendAgentMessage: (message, history) =>
+    request("POST", "/agent/chat", { message, history }),
+
+  getAgentInfo: () => request("GET", "/agent/info"),
 };

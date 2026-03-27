@@ -6,6 +6,7 @@ import BusinessIdeas from "./pages/BusinessIdeas.jsx";
 import AIEngines from "./pages/AIEngines.jsx";
 import FundingTracker from "./pages/FundingTracker.jsx";
 import Rewards from "./pages/Rewards.jsx";
+import CornerstoneAgent from "./pages/CornerstoneAgent.jsx";
 import AppSidebar from "./components/Sidebar.jsx";
 
 function PrivateRoute({ children }) {
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/ai-engines" element={<AIEngines />} />
           <Route path="/funding" element={<FundingTracker />} />
           <Route path="/rewards" element={<Rewards />} />
+          <Route path="/agent" element={<CornerstoneAgent />} />
           <Route path="*" element={<Navigate to="/ideas" replace />} />
         </Routes>
       </AuthenticatedLayout>
