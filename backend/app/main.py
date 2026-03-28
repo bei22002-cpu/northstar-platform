@@ -18,6 +18,7 @@ from app.api.research_router import router as research_router
 from app.api.rewards_router import router as rewards_router
 from app.api.business_ideas_router import router as business_ideas_router
 from app.api.agent_router import router as agent_router
+from app.api.stripe_router import router as stripe_router
 from app.core.config import CORS_ORIGINS
 
 app = FastAPI(
@@ -43,6 +44,7 @@ app.include_router(research_router)
 app.include_router(rewards_router)
 app.include_router(business_ideas_router)
 app.include_router(agent_router)
+app.include_router(stripe_router)
 
 
 @app.on_event("startup")

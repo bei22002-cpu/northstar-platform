@@ -40,10 +40,36 @@ export default function SettingsPage() {
 
   const handleUpgrade = async () => {
     try {
-      const res = await api.upgradeSubscription();
-      setSub(res);
-      alert("Upgraded to Pro!");
-    } catch (err) { alert(err.message || "Error upgrading"); }
+      const res = await api.createCheckoutSession();
+      if (res.checkout_url) {
+        window.location.href = res.checkout_url;
+      } else {
+        // Fallback: direct upgrade if Stripe not configured
+        const fallback = await api.upgradeSubscription();
+        setSub(fallback);
+        alert("Upgraded to Pro!");
+      }
+    } catch (err) {
+      // If Stripe not configured (503), fall back to direct upgrade
+      if (err.message && err.message.includes("not configured")) {
+        try {
+          const fallback = await api.upgradeSubscription();
+          setSub(fallback);
+          alert("Upgraded to Pro!");
+        } catch (e2) { alert(e2.message || "Error upgrading"); }
+      } else {
+        alert(err.message || "Error upgrading");
+      }
+    }
+  };
+
+  const handleManageBilling = async () => {
+    try {
+      const res = await api.createPortalSession();
+      if (res.portal_url) {
+        window.location.href = res.portal_url;
+      }
+    } catch (err) { alert(err.message || "Could not open billing portal"); }
   };
 
   const update = (key, val) => setSettings({ ...settings, [key]: val });
@@ -70,6 +96,7 @@ export default function SettingsPage() {
               <div style={{ width: Math.min(100, (sub.messages_used / sub.messages_limit) * 100) + "%", height: "100%", background: (sub.messages_used / sub.messages_limit) > 0.8 ? "#e53e3e" : "#48bb78", borderRadius: 4 }} />
             </div>
             {sub.tier === "free" && <button onClick={handleUpgrade} style={btnPrimary}>Upgrade to Pro ($29/mo)</button>}
+            {sub.tier === "pro" && <button onClick={handleManageBilling} style={{ ...btnPrimary, background: "#805ad5" }}>Manage Billing</button>}
           </div>
         ) : <p style={{ color: "#a0aec0", fontSize: 13 }}>No subscription info available</p>}
       </div>

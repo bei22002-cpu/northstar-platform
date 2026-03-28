@@ -219,6 +219,15 @@ export const api = {
   upgradeSubscription: () =>
     request("POST", "/agent/subscription/upgrade"),
 
+  /** Stripe Billing */
+  getStripeConfig: () => request("GET", "/billing/config"),
+
+  createCheckoutSession: () =>
+    request("POST", "/billing/checkout"),
+
+  createPortalSession: () =>
+    request("POST", "/billing/portal"),
+
   /** Platform Settings (White-Label) */
   getPlatformSettings: () => request("GET", "/agent/settings"),
 
