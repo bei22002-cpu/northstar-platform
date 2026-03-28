@@ -16,6 +16,7 @@ export default defineConfig({
       "/business-ideas": "http://localhost:8000",
       "/rewards": "http://localhost:8000",
       "/agent": "http://localhost:8000",
+      "/billing": "http://localhost:8000",
     },
   },
 });
