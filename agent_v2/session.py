@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import anthropic
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -159,13 +160,40 @@ async def run_agent(user_message: str) -> None:
             f"of {token_manager.total_keys}[/dim]"
         )
 
-        response = token_manager.create_message(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            system=enriched_system,
-            tools=TOOL_DEFINITIONS,
-            messages=trimmed_messages,
-        )
+        try:
+            response = token_manager.create_message(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=enriched_system,
+                tools=TOOL_DEFINITIONS,
+                messages=trimmed_messages,
+            )
+        except anthropic.BadRequestError as exc:
+            # Prompt too long — aggressively trim history and retry once
+            console.print(
+                "[yellow]Prompt too long — trimming history and retrying...[/yellow]"
+            )
+            # Keep only the last 4 messages (2 turns)
+            history.clear()
+            history.add_user(user_message)
+            messages = history.get_messages()
+            enriched_system, trimmed_messages = context_builder.build(
+                messages, current_query=user_message
+            )
+            try:
+                response = token_manager.create_message(
+                    model=MODEL,
+                    max_tokens=MAX_TOKENS,
+                    system=enriched_system,
+                    tools=TOOL_DEFINITIONS,
+                    messages=trimmed_messages,
+                )
+            except anthropic.BadRequestError:
+                console.print(
+                    "[bold red]Error: prompt still too long after trimming. "
+                    "Try 'forget' to clear all memory, then retry.[/bold red]"
+                )
+                return
 
         # Store the raw assistant content for future context
         history.add_assistant(response.content)
