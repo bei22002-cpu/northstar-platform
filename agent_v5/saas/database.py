@@ -90,9 +90,18 @@ def init_db() -> None:
     conn.close()
 
 
+_PASSWORD_SALT: str | None = None
+
+
+def _get_salt() -> str:
+    global _PASSWORD_SALT
+    if _PASSWORD_SALT is None:
+        _PASSWORD_SALT = os.getenv("PASSWORD_SALT") or secrets.token_hex(16)
+    return _PASSWORD_SALT
+
+
 def _hash_password(password: str) -> str:
-    salt = os.getenv("PASSWORD_SALT") or secrets.token_hex(16)
-    return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
+    return hashlib.sha256(f"{_get_salt()}{password}".encode()).hexdigest()
 
 
 # ── Plan definitions ──────────────────────────────────────────────────
