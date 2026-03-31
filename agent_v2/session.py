@@ -43,11 +43,23 @@ history = SessionHistory()
 token_manager = TokenManager(API_KEYS)
 
 
+def _has_tool_result(msg: dict[str, Any]) -> bool:
+    """Return True if *msg* contains tool_result blocks."""
+    content = msg.get("content")
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(b, dict) and b.get("type") == "tool_result" for b in content
+    )
+
+
 def _trim_if_too_large(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Drop older messages if the serialised payload exceeds MAX_PROMPT_CHARS.
 
     Keeps the most recent messages so the agent stays under the API token limit.
     Always preserves at least the last message (the current user input).
+    After trimming, drops any leading messages that contain orphaned
+    tool_result blocks (whose matching tool_use was already trimmed away).
     """
     total = len(json.dumps(messages, default=str))
     if total <= MAX_PROMPT_CHARS:
@@ -59,6 +71,17 @@ def _trim_if_too_large(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     trimmed = list(messages)
     while len(trimmed) > 1 and len(json.dumps(trimmed, default=str)) > MAX_PROMPT_CHARS:
         trimmed.pop(0)
+
+    # After trimming, the first message might be a user message with
+    # tool_result blocks whose matching assistant tool_use was removed.
+    # Drop these orphaned messages to avoid API errors.
+    while len(trimmed) > 1 and _has_tool_result(trimmed[0]):
+        trimmed.pop(0)
+
+    # Also drop any leading assistant messages (API expects user first).
+    while len(trimmed) > 1 and trimmed[0].get("role") == "assistant":
+        trimmed.pop(0)
+
     return trimmed
 
 
