@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Cornerstone AI — Jarvis Edition{% endblock %}
+{% block content %}
+<section class="hero">
+    <div class="hero-content">
+        <h1>Your AI Assistant,<br><span class="accent">Powered by Jarvis</span></h1>
+        <p class="hero-sub">Production-grade AI agent with multi-model support, persistent memory, and tool execution. Local-first, cloud-ready.</p>
+        <div class="hero-actions">
+            <a href="/signup" class="btn btn-primary btn-lg">Get Started Free</a>
+            <a href="/pricing" class="btn btn-outline btn-lg">View Pricing</a>
+        </div>
+    </div>
+</section>
+
+<section class="features">
+    <h2>Why Cornerstone AI?</h2>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <div class="feature-icon">&#9881;</div>
+            <h3>Multi-Engine</h3>
+            <p>Ollama (local), Anthropic (cloud), OpenAI-compatible. Switch models on the fly.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#128736;</div>
+            <h3>Tool Execution</h3>
+            <p>9 built-in tools — file ops, shell commands, web search, calculator, sandboxed Python.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#129504;</div>
+            <h3>Persistent Memory</h3>
+            <p>SQLite FTS5, ChromaDB vectors, or Hybrid RRF fusion. Your agent remembers everything.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#128274;</div>
+            <h3>Safety First</h3>
+            <p>Command blocklists, path protection, sandboxed execution. Production-grade security.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#128200;</div>
+            <h3>Usage Analytics</h3>
+            <p>Track tokens, costs, latency. Per-user dashboards and admin panels.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#9889;</div>
+            <h3>Key Rotation</h3>
+            <p>Up to 10 API keys with automatic rotation on rate limits. Never stop working.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

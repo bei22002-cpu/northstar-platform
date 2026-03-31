@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Pricing — Cornerstone AI{% endblock %}
+{% block content %}
+<div class="pricing-page">
+    <h1>Simple, Transparent Pricing</h1>
+    <p class="pricing-sub">Start free. Upgrade when you need more.</p>
+    <div class="pricing-grid">
+        {% for key, p in plans.items() %}
+        <div class="pricing-card {% if user and user.plan == key %}current{% endif %}">
+            {% if user and user.plan == key %}
+            <div class="current-badge">Current Plan</div>
+            {% endif %}
+            <h3>{{ p.name }}</h3>
+            <div class="price">
+                {% if p.price == 0 %}
+                <span class="amount">Free</span>
+                {% else %}
+                <span class="amount">${{ p.price }}</span><span class="period">/mo</span>
+                {% endif %}
+            </div>
+            <div class="token-limit">{{ "{:,}".format(p.tokens_limit) }} tokens/month</div>
+            <ul class="plan-features">
+                {% for f in p.features %}
+                <li>{{ f }}</li>
+                {% endfor %}
+            </ul>
+            <div class="models-list">
+                <strong>Models:</strong>
+                {% for m in p.models %}
+                <span class="model-tag">{{ m.split("-")[1] }}</span>
+                {% endfor %}
+            </div>
+            {% if not user %}
+            <a href="/signup" class="btn btn-primary btn-block">Get Started</a>
+            {% elif user.plan != key and p.price > plans[user.plan].price %}
+                {% if stripe_configured and key in ("pro", "enterprise") %}
+                <button class="btn btn-primary btn-block" onclick="checkout('{{ key }}')">Upgrade to {{ p.name }}</button>
+                {% else %}
+                <button class="btn btn-primary btn-block" onclick="alert('Stripe not configured. Set STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY in .env')">Upgrade</button>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if user and user.stripe_customer_id %}
+    <div class="billing-manage">
+        <p>Need to update payment method, cancel, or view invoices?</p>
+        <button class="btn btn-outline" onclick="openPortal()">Manage Subscription</button>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+async function checkout(plan) {
+    try {
+        const resp = await fetch('/api/checkout', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({plan: plan})
+        });
+        const data = await resp.json();
+        if (data.url) {
+            window.location.href = data.url;
+        } else {
+            alert(data.detail || 'Failed to start checkout');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function openPortal() {
+    try {
+        const resp = await fetch('/api/billing/portal', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await resp.json();
+        if (data.url) {
+            window.location.href = data.url;
+        } else {
+            alert(data.detail || 'Failed to open billing portal');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+</script>
+{% endblock %}

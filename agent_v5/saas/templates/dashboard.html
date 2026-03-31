@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Cornerstone AI{% endblock %}
+{% block content %}
+<div class="dashboard">
+    <div class="dash-header">
+        <h1>Welcome, {{ user.name or user.email }}</h1>
+        <a href="/chat" class="btn btn-primary">New Chat</a>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.total_queries }}</div>
+            <div class="stat-label">Total Queries</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ "{:,}".format(stats.total_tokens_in + stats.total_tokens_out) }}</div>
+            <div class="stat-label">Tokens Used</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${{ "%.4f"|format(stats.total_cost_usd) }}</div>
+            <div class="stat-label">Total Cost</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ user.plan|title }}</div>
+            <div class="stat-label">Current Plan</div>
+        </div>
+    </div>
+
+    <div class="dash-section">
+        <h2>Usage</h2>
+        <div class="usage-bar-container">
+            {% set pct = ((user.tokens_used / user.tokens_limit) * 100) if user.tokens_limit > 0 else 0 %}
+            <div class="usage-bar">
+                <div class="usage-fill" style="width: {{ pct|int }}%"></div>
+            </div>
+            <div class="usage-text">{{ "{:,}".format(user.tokens_used) }} / {{ "{:,}".format(user.tokens_limit) }} tokens</div>
+        </div>
+        {% if pct > 80 %}
+        <p class="usage-warning">You're running low on tokens. <a href="/pricing">Upgrade your plan</a> for more.</p>
+        {% endif %}
+    </div>
+
+    <div class="dash-section">
+        <h2>Recent Conversations</h2>
+        {% if conversations %}
+        <div class="conv-list">
+            {% for conv in conversations[:10] %}
+            <a href="/chat?id={{ conv.id }}" class="conv-item">
+                <span class="conv-title">{{ conv.title }}</span>
+                <span class="conv-date">{{ conv.created_at|int }}</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-state">No conversations yet. <a href="/chat">Start chatting!</a></p>
+        {% endif %}
+    </div>
+
+    <div class="dash-section">
+        <h2>Your Plan: {{ plan.name }}</h2>
+        <ul class="plan-features">
+            {% for f in plan.features %}
+            <li>{{ f }}</li>
+            {% endfor %}
+        </ul>
+        <div class="plan-actions">
+            {% if user.plan != "enterprise" %}
+            <a href="/pricing" class="btn btn-outline">Upgrade Plan</a>
+            {% endif %}
+            {% if user.stripe_customer_id %}
+            <button class="btn btn-sm" onclick="openPortal()">Manage Subscription</button>
+            {% endif %}
+        </div>
+    </div>
+
+<script>
+async function openPortal() {
+    try {
+        const resp = await fetch('/api/billing/portal', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await resp.json();
+        if (data.url) {
+            window.location.href = data.url;
+        } else {
+            alert(data.detail || 'Failed to open billing portal');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+</script>
+
+    <div class="dash-section">
+        <h2>API Key</h2>
+        <div class="api-key-box">
+            <code id="apiKey">{{ user.api_key or "No API key" }}</code>
+            <button onclick="navigator.clipboard.writeText(document.getElementById('apiKey').textContent)" class="btn btn-sm">Copy</button>
+        </div>
+        <p class="dim">Use this key with the <code>/v1/chat/completions</code> API endpoint.</p>
+    </div>
+</div>
+{% endblock %}
