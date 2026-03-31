@@ -18,7 +18,7 @@ Rules:
 - Keys must be short, snake_case identifiers (e.g. "user_name", "project_name").
 - Values must be concise strings or numbers.
 - Ignore greetings, filler, questions, and transient requests.
-- If there is nothing worth remembering, return an empty JSON object: {}
+- If there is nothing worth remembering, return an empty JSON object: {{}}
 - Do NOT wrap the JSON in markdown code fences.
 
 User message:
