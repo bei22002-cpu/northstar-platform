@@ -1,0 +1,6 @@
+# Runtime data (memory persistence, vector DB, session logs)
+data/
+!data/.gitkeep
+__pycache__/
+*.pyc
+.env
