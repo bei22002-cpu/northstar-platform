@@ -13,6 +13,7 @@ from typing import Any, Optional
 from agent_v5.config import ANTHROPIC_API_KEYS, DEFAULT_ENGINE, DEFAULT_MODEL
 from agent_v5.saas import database as db
 from agent_v5.saas.auth import create_token, verify_token
+from agent_v5.saas import billing
 
 try:
     from fastapi import FastAPI, Form, Request, Response, HTTPException
@@ -201,6 +202,8 @@ async def pricing_page(request: Request) -> Response:
         "request": request,
         "user": user,
         "plans": db.PLANS,
+        "stripe_configured": billing.is_configured(),
+        "stripe_pk": billing.STRIPE_PUBLISHABLE_KEY,
     })
 
 
@@ -315,3 +318,90 @@ async def admin_update_plan(request: Request) -> JSONResponse:
     body = await request.json()
     db.update_user_plan(body["user_id"], body["plan"])
     return JSONResponse({"ok": True})
+
+
+# ── Stripe billing routes ────────────────────────────────────────────
+
+@app.post("/api/checkout")
+async def create_checkout(request: Request) -> JSONResponse:
+    """Create a Stripe Checkout session for plan upgrade."""
+    user = _get_current_user(request)
+    if not user:
+        raise HTTPException(401, "Not authenticated")
+
+    if not billing.is_configured():
+        raise HTTPException(503, "Stripe is not configured. Set STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY.")
+
+    body = await request.json()
+    plan = body.get("plan", "")
+    if plan not in ("pro", "enterprise"):
+        raise HTTPException(400, "Invalid plan")
+
+    url = billing.create_checkout_session(user.id, user.email, plan)
+    if not url:
+        raise HTTPException(500, "Failed to create checkout session")
+
+    return JSONResponse({"url": url})
+
+
+@app.get("/billing/success", response_class=HTMLResponse)
+async def billing_success(request: Request) -> Response:
+    """Post-checkout success page."""
+    user = _get_current_user(request)
+    return templates.TemplateResponse("billing_success.html", {
+        "request": request,
+        "user": user,
+    })
+
+
+@app.post("/api/billing/portal")
+async def billing_portal(request: Request) -> JSONResponse:
+    """Create a Stripe Customer Portal session for managing subscription."""
+    user = _get_current_user(request)
+    if not user:
+        raise HTTPException(401, "Not authenticated")
+
+    if not user.stripe_customer_id:
+        raise HTTPException(400, "No active subscription")
+
+    url = billing.create_portal_session(user.stripe_customer_id)
+    if not url:
+        raise HTTPException(500, "Failed to create portal session")
+
+    return JSONResponse({"url": url})
+
+
+@app.post("/webhooks/stripe")
+async def stripe_webhook(request: Request) -> JSONResponse:
+    """Handle Stripe webhook events."""
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+
+    try:
+        event = billing.handle_webhook_event(payload, sig)
+    except Exception as e:
+        raise HTTPException(400, f"Webhook error: {e}")
+
+    event_type = event.get("event_type", "")
+
+    if event_type == "checkout.session.completed":
+        user_id = event.get("user_id", 0)
+        plan = event.get("plan", "")
+        customer_id = event.get("customer_id", "")
+        subscription_id = event.get("subscription_id", "")
+        if user_id and plan:
+            db.update_user_stripe(
+                user_id=user_id,
+                customer_id=customer_id,
+                subscription_id=subscription_id,
+                plan=plan,
+            )
+
+    elif event_type == "customer.subscription.deleted":
+        customer_id = event.get("customer_id", "")
+        if customer_id:
+            user = db.get_user_by_stripe_customer(customer_id)
+            if user:
+                db.update_user_stripe(user_id=user.id, plan="free")
+
+    return JSONResponse({"received": True})

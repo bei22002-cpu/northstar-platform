@@ -63,10 +63,34 @@
             <li>{{ f }}</li>
             {% endfor %}
         </ul>
-        {% if user.plan != "enterprise" %}
-        <a href="/pricing" class="btn btn-outline">Upgrade Plan</a>
-        {% endif %}
+        <div class="plan-actions">
+            {% if user.plan != "enterprise" %}
+            <a href="/pricing" class="btn btn-outline">Upgrade Plan</a>
+            {% endif %}
+            {% if user.stripe_customer_id %}
+            <button class="btn btn-sm" onclick="openPortal()">Manage Subscription</button>
+            {% endif %}
+        </div>
     </div>
+
+<script>
+async function openPortal() {
+    try {
+        const resp = await fetch('/api/billing/portal', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await resp.json();
+        if (data.url) {
+            window.location.href = data.url;
+        } else {
+            alert(data.detail || 'Failed to open billing portal');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+</script>
 
     <div class="dash-section">
         <h2>API Key</h2>

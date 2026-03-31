@@ -41,6 +41,8 @@ def init_db() -> None:
             last_query_date TEXT NOT NULL DEFAULT '',
             api_key TEXT UNIQUE,
             is_admin INTEGER NOT NULL DEFAULT 0,
+            stripe_customer_id TEXT DEFAULT '',
+            stripe_subscription_id TEXT DEFAULT '',
             created_at REAL NOT NULL,
             last_login REAL
         );
@@ -87,6 +89,22 @@ def init_db() -> None:
             ("admin@cornerstone.ai", _hash_password(admin_pw), "Admin", "enterprise", 99999999, 1, time.time()),
         )
         conn.commit()
+    conn.close()
+
+    # Migrate: add Stripe columns if missing
+    _migrate_stripe_columns()
+
+
+def _migrate_stripe_columns() -> None:
+    """Add stripe columns to users table if they don't exist."""
+    conn = _get_db()
+    cursor = conn.execute("PRAGMA table_info(users)")
+    columns = {row["name"] for row in cursor.fetchall()}
+    if "stripe_customer_id" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT DEFAULT ''")
+    if "stripe_subscription_id" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT DEFAULT ''")
+    conn.commit()
     conn.close()
 
 
@@ -144,6 +162,8 @@ class User:
     queries_today: int
     is_admin: bool
     api_key: Optional[str]
+    stripe_customer_id: str
+    stripe_subscription_id: str
     created_at: float
 
 
@@ -212,6 +232,34 @@ def update_user_plan(user_id: int, plan: str) -> None:
         (plan, PLANS[plan]["tokens_limit"], user_id),
     )
     conn.commit()
+    conn.close()
+
+
+def update_user_stripe(
+    user_id: int,
+    customer_id: str = "",
+    subscription_id: str = "",
+    plan: str = "",
+) -> None:
+    """Update Stripe-related fields for a user after checkout or webhook."""
+    conn = _get_db()
+    parts: list[str] = []
+    values: list[Any] = []
+    if customer_id:
+        parts.append("stripe_customer_id = ?")
+        values.append(customer_id)
+    if subscription_id:
+        parts.append("stripe_subscription_id = ?")
+        values.append(subscription_id)
+    if plan and plan in PLANS:
+        parts.append("plan = ?")
+        values.append(plan)
+        parts.append("tokens_limit = ?")
+        values.append(PLANS[plan]["tokens_limit"])
+    if parts:
+        values.append(user_id)
+        conn.execute(f"UPDATE users SET {', '.join(parts)} WHERE id = ?", values)
+        conn.commit()
     conn.close()
 
 
@@ -318,6 +366,13 @@ def get_messages(conversation_id: int) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
+def get_user_by_stripe_customer(customer_id: str) -> Optional[User]:
+    conn = _get_db()
+    row = conn.execute("SELECT * FROM users WHERE stripe_customer_id = ?", (customer_id,)).fetchone()
+    conn.close()
+    return _row_to_user(row) if row else None
+
+
 def _row_to_user(row: sqlite3.Row) -> User:
     return User(
         id=row["id"],
@@ -329,5 +384,7 @@ def _row_to_user(row: sqlite3.Row) -> User:
         queries_today=row["queries_today"],
         is_admin=bool(row["is_admin"]),
         api_key=row["api_key"],
+        stripe_customer_id=row["stripe_customer_id"] or "",
+        stripe_subscription_id=row["stripe_subscription_id"] or "",
         created_at=row["created_at"],
     )

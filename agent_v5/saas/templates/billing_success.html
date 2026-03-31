@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Payment Successful — Cornerstone AI{% endblock %}
+{% block content %}
+<div class="billing-success">
+    <div class="success-card">
+        <div class="success-icon">&#10003;</div>
+        <h1>Payment Successful!</h1>
+        <p>Your plan has been upgraded. You now have access to more models and higher token limits.</p>
+        <div class="success-actions">
+            <a href="/dashboard" class="btn btn-primary btn-lg">Go to Dashboard</a>
+            <a href="/chat" class="btn btn-outline btn-lg">Start Chatting</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
