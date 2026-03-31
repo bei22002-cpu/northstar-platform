@@ -53,25 +53,51 @@ def _get_current_user(request: Request) -> Optional[db.User]:
 
 
 def _chat_with_engine(messages: list[dict[str, Any]], model: str = "") -> dict[str, Any]:
-    """Send messages to the agent_v5 engine and return the response."""
-    from agent_v5.engine.discovery import get_engine
-    from agent_v5.types import GenerationConfig
+    """Send messages to the agent_v5 engine and return the response.
 
-    engine = get_engine(DEFAULT_ENGINE)
+    Falls back to direct Anthropic SDK call if the engine framework fails.
+    """
     use_model = model or DEFAULT_MODEL or "claude-sonnet-4-20250514"
-
     system = "You are Cornerstone AI, a helpful and capable assistant built on the Jarvis framework. Be concise, accurate, and helpful."
-
     filtered = [m for m in messages if m.get("role") != "system"]
 
-    config = GenerationConfig(temperature=0.7, max_tokens=4096)
-    result = engine.generate(filtered, use_model, config=config, system=system)
+    # Try engine framework first
+    try:
+        from agent_v5.engine.discovery import get_engine
+        from agent_v5.types import GenerationConfig
 
+        engine = get_engine(DEFAULT_ENGINE)
+        config = GenerationConfig(temperature=0.7, max_tokens=4096)
+        result = engine.generate(filtered, use_model, config=config, system=system)
+        return {
+            "text": result.text,
+            "model": result.model,
+            "tokens_in": result.tokens_in,
+            "tokens_out": result.tokens_out,
+        }
+    except Exception:
+        pass
+
+    # Fallback: call Anthropic SDK directly
+    if not ANTHROPIC_API_KEYS:
+        raise RuntimeError("No API keys configured. Set ANTHROPIC_API_KEY_1 in agent_v5/.env")
+
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEYS[0])
+    resp = client.messages.create(
+        model=use_model,
+        max_tokens=4096,
+        system=system,
+        messages=filtered,
+    )
+
+    text = "".join(b.text for b in resp.content if hasattr(b, "text"))
     return {
-        "text": result.text,
-        "model": result.model,
-        "tokens_in": result.tokens_in,
-        "tokens_out": result.tokens_out,
+        "text": text,
+        "model": use_model,
+        "tokens_in": getattr(resp.usage, "input_tokens", 0),
+        "tokens_out": getattr(resp.usage, "output_tokens", 0),
     }
 
 
