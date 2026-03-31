@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from rich.console import Console
@@ -33,12 +34,32 @@ SYSTEM_PROMPT = (
 
 MODEL = "claude-opus-4-5"
 MAX_TOKENS = 8096
+MAX_PROMPT_CHARS = 600_000  # ~150K tokens — safe margin under 200K limit
 
 # Shared session history (one per process lifetime)
 history = SessionHistory()
 
 # Token manager — handles key rotation automatically
 token_manager = TokenManager(API_KEYS)
+
+
+def _trim_if_too_large(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop older messages if the serialised payload exceeds MAX_PROMPT_CHARS.
+
+    Keeps the most recent messages so the agent stays under the API token limit.
+    Always preserves at least the last message (the current user input).
+    """
+    total = len(json.dumps(messages, default=str))
+    if total <= MAX_PROMPT_CHARS:
+        return messages
+
+    console.print(
+        f"[yellow]History too large ({total:,} chars) — trimming oldest messages...[/yellow]"
+    )
+    trimmed = list(messages)
+    while len(trimmed) > 1 and len(json.dumps(trimmed, default=str)) > MAX_PROMPT_CHARS:
+        trimmed.pop(0)
+    return trimmed
 
 
 async def run_agent(user_message: str) -> None:
@@ -57,18 +78,39 @@ async def run_agent(user_message: str) -> None:
         history.sanitize()
         messages = history.get_messages()
 
+        # Trim history if it's too large to avoid "prompt is too long" errors.
+        messages = _trim_if_too_large(messages)
+
         console.print(
             f"[dim]Using API key #{token_manager.active_key_index} "
             f"of {token_manager.total_keys}[/dim]"
         )
 
-        response = token_manager.create_message(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            system=SYSTEM_PROMPT,
-            tools=TOOL_DEFINITIONS,
-            messages=messages,
-        )
+        try:
+            response = token_manager.create_message(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=SYSTEM_PROMPT,
+                tools=TOOL_DEFINITIONS,
+                messages=messages,
+            )
+        except Exception as exc:
+            if "prompt is too long" in str(exc):
+                console.print(
+                    "[yellow]Prompt too long — trimming history and retrying...[/yellow]"
+                )
+                history.clear()
+                history.add_user(user_message)
+                messages = history.get_messages()
+                response = token_manager.create_message(
+                    model=MODEL,
+                    max_tokens=MAX_TOKENS,
+                    system=SYSTEM_PROMPT,
+                    tools=TOOL_DEFINITIONS,
+                    messages=messages,
+                )
+            else:
+                raise
 
         # Store the raw assistant content for future context
         history.add_assistant(response.content)
