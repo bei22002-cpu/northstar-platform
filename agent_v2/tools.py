@@ -297,9 +297,15 @@ _TOOL_MAP = {
 }
 
 
+MAX_TOOL_OUTPUT = 50_000  # cap tool output to prevent history bloat
+
+
 def execute_tool(tool_name: str, tool_input: dict[str, Any]) -> str:
     """Dispatch a tool call by name and return the string result."""
     func = _TOOL_MAP.get(tool_name)
     if func is None:
         return f"Error: unknown tool '{tool_name}'"
-    return func(**tool_input)
+    result = func(**tool_input)
+    if len(result) > MAX_TOOL_OUTPUT:
+        return result[:MAX_TOOL_OUTPUT] + f"\n\n... (output truncated at {MAX_TOOL_OUTPUT:,} chars)"
+    return result
