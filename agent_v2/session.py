@@ -35,6 +35,7 @@ SYSTEM_PROMPT = (
 MODEL = "claude-opus-4-5"
 MAX_TOKENS = 8096
 MAX_PROMPT_CHARS = 600_000  # ~150K tokens — safe margin under 200K limit
+MAX_TOOL_OUTPUT_CHARS = 50_000  # cap individual tool results to prevent history bloat
 
 # Shared session history (one per process lifetime)
 history = SessionHistory()
@@ -43,46 +44,31 @@ history = SessionHistory()
 token_manager = TokenManager(API_KEYS)
 
 
-def _has_tool_result(msg: dict[str, Any]) -> bool:
-    """Return True if *msg* contains tool_result blocks."""
-    content = msg.get("content")
-    if not isinstance(content, list):
-        return False
-    return any(
-        isinstance(b, dict) and b.get("type") == "tool_result" for b in content
-    )
+def _safe_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return a clean message list that the API will accept.
 
-
-def _trim_if_too_large(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Drop older messages if the serialised payload exceeds MAX_PROMPT_CHARS.
-
-    Keeps the most recent messages so the agent stays under the API token limit.
-    Always preserves at least the last message (the current user input).
-    After trimming, drops any leading messages that contain orphaned
-    tool_result blocks (whose matching tool_use was already trimmed away).
+    1. Drops messages from the front until under MAX_PROMPT_CHARS.
+    2. Ensures the first message is a plain user message (not tool_result,
+       not assistant) so the API never sees orphaned references.
     """
     total = len(json.dumps(messages, default=str))
     if total <= MAX_PROMPT_CHARS:
         return messages
 
     console.print(
-        f"[yellow]History too large ({total:,} chars) — trimming oldest messages...[/yellow]"
+        f"[yellow]History too large ({total:,} chars) — clearing and starting fresh...[/yellow]"
     )
-    trimmed = list(messages)
-    while len(trimmed) > 1 and len(json.dumps(trimmed, default=str)) > MAX_PROMPT_CHARS:
-        trimmed.pop(0)
-
-    # After trimming, the first message might be a user message with
-    # tool_result blocks whose matching assistant tool_use was removed.
-    # Drop these orphaned messages to avoid API errors.
-    while len(trimmed) > 1 and _has_tool_result(trimmed[0]):
-        trimmed.pop(0)
-
-    # Also drop any leading assistant messages (API expects user first).
-    while len(trimmed) > 1 and trimmed[0].get("role") == "assistant":
-        trimmed.pop(0)
-
-    return trimmed
+    # Rather than trying to surgically trim, just keep the last user message.
+    # This is the safest approach — no orphaned tool_use/tool_result pairs.
+    last_user = None
+    for msg in reversed(messages):
+        if msg.get("role") == "user" and isinstance(msg.get("content"), str):
+            last_user = msg
+            break
+    if last_user:
+        return [last_user]
+    # Fallback: keep only the very last message
+    return messages[-1:]
 
 
 async def run_agent(user_message: str) -> None:
@@ -102,7 +88,7 @@ async def run_agent(user_message: str) -> None:
         messages = history.get_messages()
 
         # Trim history if it's too large to avoid "prompt is too long" errors.
-        messages = _trim_if_too_large(messages)
+        messages = _safe_messages(messages)
 
         console.print(
             f"[dim]Using API key #{token_manager.active_key_index} "
@@ -118,9 +104,10 @@ async def run_agent(user_message: str) -> None:
                 messages=messages,
             )
         except Exception as exc:
-            if "prompt is too long" in str(exc):
+            err_msg = str(exc)
+            if "prompt is too long" in err_msg or "tool_use_id" in err_msg or "tool_result" in err_msg or "tool_use" in err_msg:
                 console.print(
-                    "[yellow]Prompt too long — trimming history and retrying...[/yellow]"
+                    "[yellow]Bad history detected — clearing and retrying...[/yellow]"
                 )
                 history.clear()
                 history.add_user(user_message)
