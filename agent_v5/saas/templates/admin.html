@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Admin — Cornerstone AI{% endblock %}
+{% block content %}
+<div class="dashboard">
+    <div class="dash-header">
+        <h1>Admin Panel</h1>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.total_users }}</div>
+            <div class="stat-label">Total Users</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.total_queries }}</div>
+            <div class="stat-label">Total Queries</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ "{:,}".format(stats.total_tokens) }}</div>
+            <div class="stat-label">Total Tokens</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${{ "%.4f"|format(stats.total_revenue) }}</div>
+            <div class="stat-label">Revenue</div>
+        </div>
+    </div>
+
+    <div class="dash-section">
+        <h2>Plan Distribution</h2>
+        <div class="plan-dist">
+            {% for plan_name, count in stats.plan_counts.items() %}
+            <span class="plan-badge">{{ plan_name|title }}: {{ count }}</span>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="dash-section">
+        <h2>Users</h2>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Plan</th>
+                    <th>Tokens Used</th>
+                    <th>Queries Today</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>{{ u.id }}</td>
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.name }}</td>
+                    <td>
+                        <select onchange="updatePlan({{ u.id }}, this.value)" class="plan-select">
+                            {% for key in plans %}
+                            <option value="{{ key }}" {% if u.plan == key %}selected{% endif %}>{{ key|title }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>{{ "{:,}".format(u.tokens_used) }} / {{ "{:,}".format(u.tokens_limit) }}</td>
+                    <td>{{ u.queries_today }}</td>
+                    <td>
+                        <span class="badge {% if u.is_admin %}badge-admin{% endif %}">
+                            {{ "Admin" if u.is_admin else "User" }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function updatePlan(userId, plan) {
+    await fetch('/api/admin/update-plan', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({user_id: userId, plan: plan})
+    });
+    location.reload();
+}
+</script>
+{% endblock %}

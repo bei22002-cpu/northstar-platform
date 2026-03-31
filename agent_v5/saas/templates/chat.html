@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Chat — Cornerstone AI{% endblock %}
+{% block content %}
+<div class="chat-layout">
+    <aside class="chat-sidebar">
+        <button onclick="newChat()" class="btn btn-primary btn-block">+ New Chat</button>
+        <div class="conv-list" id="convList">
+            {% for conv in conversations %}
+            <a href="/chat?id={{ conv.id }}" class="conv-item {% if conv_id|string == conv.id|string %}active{% endif %}">
+                {{ conv.title }}
+            </a>
+            {% endfor %}
+        </div>
+        <div class="sidebar-footer">
+            <span class="dim">{{ user.plan|title }} Plan</span>
+            <a href="/dashboard" class="dim">Dashboard</a>
+        </div>
+    </aside>
+    <div class="chat-main">
+        <div class="chat-messages" id="messages">
+            {% if messages %}
+                {% for msg in messages %}
+                <div class="message {{ msg.role }}">
+                    <div class="msg-role">{{ "You" if msg.role == "user" else "Cornerstone AI" }}</div>
+                    <div class="msg-content">{{ msg.content }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="chat-empty">
+                <h2>Cornerstone AI</h2>
+                <p>How can I help you today?</p>
+            </div>
+            {% endif %}
+        </div>
+        <div class="chat-input-area">
+            <div class="model-select">
+                <select id="modelSelect">
+                    {% for m in plan.models %}
+                    <option value="{{ m }}">{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <form id="chatForm" class="chat-form">
+                <input type="text" id="userInput" placeholder="Type your message..." autocomplete="off" autofocus>
+                <button type="submit" class="btn btn-primary" id="sendBtn">Send</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/chat.js"></script>
+<script>
+    window.CONV_ID = {{ conv_id|tojson }};
+</script>
+{% endblock %}

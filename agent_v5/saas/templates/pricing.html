@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Pricing — Cornerstone AI{% endblock %}
+{% block content %}
+<div class="pricing-page">
+    <h1>Simple, Transparent Pricing</h1>
+    <p class="pricing-sub">Start free. Upgrade when you need more.</p>
+    <div class="pricing-grid">
+        {% for key, p in plans.items() %}
+        <div class="pricing-card {% if user and user.plan == key %}current{% endif %}">
+            {% if user and user.plan == key %}
+            <div class="current-badge">Current Plan</div>
+            {% endif %}
+            <h3>{{ p.name }}</h3>
+            <div class="price">
+                {% if p.price == 0 %}
+                <span class="amount">Free</span>
+                {% else %}
+                <span class="amount">${{ p.price }}</span><span class="period">/mo</span>
+                {% endif %}
+            </div>
+            <div class="token-limit">{{ "{:,}".format(p.tokens_limit) }} tokens/month</div>
+            <ul class="plan-features">
+                {% for f in p.features %}
+                <li>{{ f }}</li>
+                {% endfor %}
+            </ul>
+            <div class="models-list">
+                <strong>Models:</strong>
+                {% for m in p.models %}
+                <span class="model-tag">{{ m.split("-")[1] }}</span>
+                {% endfor %}
+            </div>
+            {% if not user %}
+            <a href="/signup" class="btn btn-primary btn-block">Get Started</a>
+            {% elif user.plan != key and plans[key].price > plans[user.plan].price %}
+            <button class="btn btn-primary btn-block" onclick="alert('Contact admin@cornerstone.ai to upgrade')">Upgrade</button>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
