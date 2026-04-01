@@ -15,8 +15,7 @@ export default defineConfig({
       "/research": "http://localhost:8000",
       "/business-ideas": "http://localhost:8000",
       "/rewards": "http://localhost:8000",
-      "/agent/chat": "http://localhost:8000",
-      "/agent/info": "http://localhost:8000",
+      "/agent": "http://localhost:8000",
     },
   },
 });

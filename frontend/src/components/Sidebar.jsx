@@ -8,6 +8,9 @@ const navItems = [
   { to: "/funding", label: "Funding Tracker" },
   { to: "/rewards", label: "Rewards" },
   { to: "/agent", label: "Cornerstone Agent" },
+  { to: "/analytics", label: "Analytics" },
+  { to: "/marketplace", label: "Agent Marketplace" },
+  { to: "/settings", label: "Settings" },
 ];
 
 const linkStyle = {

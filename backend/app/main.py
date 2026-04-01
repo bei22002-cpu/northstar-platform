@@ -1,6 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.database import engine, Base
+# Import all models so they register with Base.metadata
+from app.models.user import User  # noqa: F401
+from app.models.agent_audit import AgentAuditLog  # noqa: F401
+from app.models.agent_config import AgentConfig  # noqa: F401
+from app.models.subscription import UserSubscription, UsageRecord  # noqa: F401
+from app.models.platform_settings import PlatformSettings  # noqa: F401
+
 from app.api.auth_router import router as auth_router
 from app.api.leads_router import router as leads_router
 from app.api.outreach_router import router as outreach_router
@@ -37,6 +45,12 @@ app.include_router(business_ideas_router)
 app.include_router(agent_router)
 
 
+@app.on_event("startup")
+def on_startup():
+    """Create database tables for new models on startup."""
+    Base.metadata.create_all(bind=engine)
+
+
 @app.get("/")
 def health_check():
-    return {"status": "ok", "platform": "NorthStar", "version": "0.4.0"}
+    return {"status": "ok", "platform": "NorthStar", "version": "0.5.0"}
