@@ -7,6 +7,11 @@ import AIEngines from "./pages/AIEngines.jsx";
 import FundingTracker from "./pages/FundingTracker.jsx";
 import Rewards from "./pages/Rewards.jsx";
 import CornerstoneAgent from "./pages/CornerstoneAgent.jsx";
+import AnalyticsDashboard from "./pages/AnalyticsDashboard.jsx";
+import AgentMarketplace from "./pages/AgentMarketplace.jsx";
+import SettingsPage from "./pages/SettingsPage.jsx";
+import LandingPage from "./pages/LandingPage.jsx";
+import PricingPage from "./pages/PricingPage.jsx";
 import AppSidebar from "./components/Sidebar.jsx";
 
 function PrivateRoute({ children }) {
@@ -44,8 +49,10 @@ export default function App() {
     return (
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
           <Route path="/login" element={<Login onLogin={() => setAuthed(true)} />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     );
@@ -62,6 +69,9 @@ export default function App() {
           <Route path="/funding" element={<FundingTracker />} />
           <Route path="/rewards" element={<Rewards />} />
           <Route path="/agent" element={<CornerstoneAgent />} />
+          <Route path="/analytics" element={<AnalyticsDashboard />} />
+          <Route path="/marketplace" element={<AgentMarketplace />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/ideas" replace />} />
         </Routes>
       </AuthenticatedLayout>

@@ -8,7 +8,7 @@
  * /auth, /leads, and /outreach to the FastAPI backend on localhost:8000.
  */
 
-const BASE_URL = "";
+const BASE_URL = import.meta.env.VITE_API_URL || "";
 
 function authHeaders() {
   const token = localStorage.getItem("access_token");
@@ -167,8 +167,70 @@ export const api = {
   getRevenueModels: () => request("GET", "/rewards/revenue-models"),
 
   /** Cornerstone AI Agent */
-  sendAgentMessage: (message, history) =>
-    request("POST", "/agent/chat", { message, history }),
+  sendAgentMessage: (message, history, provider, model, requireApproval, agentConfigId) =>
+    request("POST", "/agent/chat", {
+      message,
+      history,
+      provider: provider || "anthropic",
+      model: model || null,
+      require_approval: requireApproval || false,
+      agent_config_id: agentConfigId || null,
+    }),
+
+  streamAgentMessage: (message, history, model) => {
+    const token = localStorage.getItem("access_token");
+    return fetch(`${BASE_URL}/agent/chat/stream`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message, history, model }),
+    });
+  },
+
+  approveTools: (approvals, approved) =>
+    request("POST", "/agent/approve", { approvals, approved }),
 
   getAgentInfo: () => request("GET", "/agent/info"),
+
+  /** Agent Audit Logs */
+  getAuditLogs: (limit = 50, offset = 0) =>
+    request("GET", `/agent/audit?limit=${limit}&offset=${offset}`),
+
+  /** Agent Analytics */
+  getAgentAnalytics: () => request("GET", "/agent/analytics"),
+
+  /** Agent Marketplace */
+  getMarketplaceConfigs: (category) => {
+    const qs = category ? `?category=${category}` : "";
+    return request("GET", `/agent/marketplace${qs}`);
+  },
+
+  createMarketplaceConfig: (payload) =>
+    request("POST", "/agent/marketplace", payload),
+
+  deleteMarketplaceConfig: (id) =>
+    request("DELETE", `/agent/marketplace/${id}`),
+
+  /** Subscription / Usage */
+  getSubscription: () => request("GET", "/agent/subscription"),
+
+  upgradeSubscription: () =>
+    request("POST", "/agent/subscription/upgrade"),
+
+  /** Stripe Billing */
+  getStripeConfig: () => request("GET", "/billing/config"),
+
+  createCheckoutSession: () =>
+    request("POST", "/billing/checkout"),
+
+  createPortalSession: () =>
+    request("POST", "/billing/portal"),
+
+  /** Platform Settings (White-Label) */
+  getPlatformSettings: () => request("GET", "/agent/settings"),
+
+  updatePlatformSettings: (payload) =>
+    request("PUT", "/agent/settings", payload),
 };

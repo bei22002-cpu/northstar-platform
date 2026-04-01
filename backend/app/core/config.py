@@ -12,6 +12,15 @@ REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 SERPAPI_KEY: str = os.getenv("SERPAPI_KEY", "")
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
+
+# Stripe
+STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY: str = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PRO_PRICE_ID: str = os.getenv("STRIPE_PRO_PRICE_ID", "")
+FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
 CORS_ORIGINS: list[str] = [
     o.strip()
     for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")

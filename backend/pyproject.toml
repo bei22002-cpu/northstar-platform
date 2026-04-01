@@ -18,6 +18,8 @@ httpx = "^0.28.1"
 python-multipart = "^0.0.22"
 alembic = "^1.16.1"
 openai = "^1.82.0"
+stripe = "~11.4.1"
+anthropic = "~0.40.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
