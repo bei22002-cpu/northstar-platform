@@ -31,6 +31,8 @@ from agent_v2.memory import memory_store
 from agent_v2.permissions import permissions
 from agent_v2.session import history, run_agent, token_manager
 from agent_v2.tools import TOOL_DEFINITIONS, execute_tool
+from agent_v2.printing3d import print_3d_status
+from agent_v2.gamedev import print_gamedev_status
 from agent_v2.undercover import is_undercover_enabled
 
 console = Console()
@@ -59,6 +61,8 @@ def _print_banner() -> None:
     kairos_state = get_state()
     kairos_pending = sum(1 for g in kairos_state.goals if g.status.value == "pending")
     features.append(f"KAIROS ({kairos_pending} queued)")
+    features.append("3D Printing")
+    features.append("Game Dev")
     if is_undercover_enabled():
         features.append("Undercover mode ACTIVE")
     banner.append(
@@ -75,7 +79,7 @@ def _print_banner() -> None:
     )
     banner.append("Type 'exit' or 'quit' to end the session.\n", style="dim")
     banner.append(
-        "Commands: /keys /memory /hooks /compact /permissions /undercover /kairos /help\n",
+        "Commands: /keys /memory /hooks /compact /permissions /undercover /kairos /3dprint /gamedev /help\n",
         style="dim",
     )
     console.print(
@@ -119,6 +123,8 @@ def _print_help() -> None:
     help_text.add_row("/compact", "Show auto-compact status")
     help_text.add_row("/permissions", "Show permission policy status")
     help_text.add_row("/undercover", "Show undercover mode status")
+    help_text.add_row("/3dprint", "Show 3D printing module status")
+    help_text.add_row("/gamedev", "Show game development module status")
     help_text.add_row("/kairos", "Show KAIROS queue status")
     help_text.add_row("/kairos add <goal>", "Add a goal to the KAIROS queue")
     help_text.add_row("/kairos remove <#>", "Remove a pending goal by index")
@@ -336,6 +342,16 @@ def main() -> None:
                 continue
             if user_input.lower() == "/kairos reset":
                 kairos_reset()
+                continue
+
+            # --- 3D Printing commands ---
+            if user_input.lower() == "/3dprint":
+                print_3d_status()
+                continue
+
+            # --- Game Dev commands ---
+            if user_input.lower() == "/gamedev":
+                print_gamedev_status()
                 continue
 
             asyncio.run(run_agent(user_input))

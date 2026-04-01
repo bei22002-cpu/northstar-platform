@@ -366,12 +366,152 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["task"],
         },
     },
+    # --- 3D Printing tools ---
+    {
+        "name": "generate_3d_part",
+        "description": (
+            "Generate a 3D printable part as an OpenSCAD (.scad) file. "
+            "Use part_type for templates (box, bracket, cylinder_mount, gear, "
+            "phone_stand, cable_clip, hinge, spacer) with params JSON, "
+            "or provide custom_scad code directly. "
+            "The user can open the .scad file in OpenSCAD to preview and export to STL for printing."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "part_type": {
+                    "type": "string",
+                    "description": "Template name: box, bracket, cylinder_mount, gear, phone_stand, cable_clip, hinge, spacer",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Filename for the part (without .scad extension).",
+                },
+                "params": {
+                    "type": "string",
+                    "description": 'JSON string of parameters to customize the template. E.g. {\"width\": 80, \"height\": 50}',
+                    "default": "{}",
+                },
+                "custom_scad": {
+                    "type": "string",
+                    "description": "Raw OpenSCAD code to write directly (ignores part_type if provided).",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "list_3d_templates",
+        "description": "List all available 3D part templates with their parameters.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "list_3d_parts",
+        "description": "List all previously generated 3D parts.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    # --- Game Development tools ---
+    {
+        "name": "create_game_project",
+        "description": (
+            "Create a new game project from a template. "
+            "Frameworks: pygame, phaser. "
+            "Genres: platformer, topdown_rpg, space_shooter, puzzle, endless_runner. "
+            "Generates all source files ready to run."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Project name (used as directory name).",
+                },
+                "framework": {
+                    "type": "string",
+                    "description": "Game framework: pygame, phaser, godot, love2d, unity",
+                    "default": "pygame",
+                },
+                "genre": {
+                    "type": "string",
+                    "description": "Game genre template: platformer, topdown_rpg, space_shooter, puzzle, endless_runner",
+                    "default": "platformer",
+                },
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "clone_game_repo",
+        "description": (
+            "Clone a game repository from GitHub into the game projects directory. "
+            "Use this to pull in game engines, frameworks, or example projects."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "repo_url": {
+                    "type": "string",
+                    "description": "GitHub repository URL to clone.",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Optional local directory name. Defaults to repo name.",
+                    "default": "",
+                },
+            },
+            "required": ["repo_url"],
+        },
+    },
+    {
+        "name": "list_game_projects",
+        "description": "List all game projects that have been created or cloned.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "list_game_frameworks",
+        "description": "List all supported game development frameworks with install and run instructions.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "list_game_genres",
+        "description": "List all available game genre templates.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
 ]
 
 
 # ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
+
+from agent_v2.printing3d import generate_3d_part, list_3d_templates, list_3d_parts
+from agent_v2.gamedev import (
+    create_game_project,
+    clone_game_repo,
+    list_game_projects,
+    list_game_frameworks,
+    list_game_genres,
+)
 
 _TOOL_MAP = {
     "write_file": write_file,
@@ -383,6 +523,16 @@ _TOOL_MAP = {
     "search_in_files": search_in_files,
     "git_status": git_status,
     "patch_file": patch_file,
+    # 3D Printing
+    "generate_3d_part": generate_3d_part,
+    "list_3d_templates": list_3d_templates,
+    "list_3d_parts": list_3d_parts,
+    # Game Development
+    "create_game_project": create_game_project,
+    "clone_game_repo": clone_game_repo,
+    "list_game_projects": list_game_projects,
+    "list_game_frameworks": list_game_frameworks,
+    "list_game_genres": list_game_genres,
     # "task" is handled specially in session.py -- not dispatched here
 }
 
