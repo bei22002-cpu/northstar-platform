@@ -69,23 +69,24 @@ class ShimMessage:
 # ---------------------------------------------------------------------------
 
 class OpenClawProvider:
-    """Calls an OpenClaw Zero Token gateway for FREE AI model access.
+    """Calls an OpenClaw gateway for FREE AI model access.
 
-    OpenClaw Zero Token lets you use Claude, ChatGPT, Gemini, DeepSeek,
-    Qwen, Doubao, Kimi, Grok, and more — completely free. It works by
-    driving the official web UIs via browser login instead of paid API keys.
+    OpenClaw lets you use Claude, ChatGPT, Gemini, DeepSeek, Qwen, Doubao,
+    Kimi, Grok, and more — completely free. It works by driving the official
+    web UIs via browser login instead of paid API keys.
 
     Setup:
         1. Clone: git clone https://github.com/linuxhsj/openclaw-zero-token
-        2. Install: cd openclaw-zero-token && npm install
-        3. Start:  npm start
-        4. Login to your AI provider(s) in the browser window that opens
-        5. The gateway runs at http://localhost:3000 by default
+        2. Install: cd openclaw-zero-token && pnpm install
+        3. Setup:  npx openclaw setup
+        4. Start:  npx openclaw gateway
+        5. The gateway runs at http://localhost:18789 by default
 
-    The gateway exposes an OpenAI-compatible API at /v1/chat/completions.
+    The gateway exposes an OpenAI-compatible API at /v1/chat/completions
+    on the same port as the WebSocket control plane.
     """
 
-    DEFAULT_BASE_URL = "http://localhost:3000"
+    DEFAULT_BASE_URL = "http://localhost:18789"
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
 
     def __init__(
@@ -225,7 +226,8 @@ class OpenClawProvider:
             raise ConnectionError(
                 f"Cannot connect to OpenClaw gateway at {self.base_url}.\n"
                 f"Setup: git clone https://github.com/linuxhsj/openclaw-zero-token\n"
-                f"       cd openclaw-zero-token && npm install && npm start\n"
+                f"       cd openclaw-zero-token && pnpm install\n"
+                f"       npx openclaw setup && npx openclaw gateway\n"
                 f"Error: {exc}"
             ) from exc
 

@@ -232,7 +232,7 @@ def _print_model_info() -> None:
         )
     elif provider in ("openclaw", "openclaw-zero-token", "zerotok"):
         oc_model = os.getenv("OPENCLAW_MODEL", "claude-sonnet-4-20250514")
-        oc_url = os.getenv("OPENCLAW_BASE_URL", "http://localhost:3000")
+        oc_url = os.getenv("OPENCLAW_BASE_URL", "http://localhost:18789")
         info += (
             f"Model: {oc_model}\n"
             f"Gateway: {oc_url}\n"
