@@ -13,8 +13,14 @@ from agent_v2.config import WORKSPACE
 # Tool functions
 # ---------------------------------------------------------------------------
 
-def write_file(filepath: str, content: str) -> str:
+def write_file(filepath: str, content: str = "") -> str:
     """Write *content* to a file relative to WORKSPACE, creating parents."""
+    if not content:
+        return (
+            f"Error: 'content' argument is required for write_file. "
+            f"You called write_file with filepath='{filepath}' but no content. "
+            f"Please retry with both filepath AND content arguments."
+        )
     try:
         full = os.path.join(WORKSPACE, filepath)
         os.makedirs(os.path.dirname(full), exist_ok=True)
@@ -297,9 +303,26 @@ _TOOL_MAP = {
 }
 
 
+MAX_TOOL_OUTPUT = 50_000  # cap tool output to prevent history bloat
+
+
 def execute_tool(tool_name: str, tool_input: dict[str, Any]) -> str:
     """Dispatch a tool call by name and return the string result."""
     func = _TOOL_MAP.get(tool_name)
     if func is None:
         return f"Error: unknown tool '{tool_name}'"
-    return func(**tool_input)
+    try:
+        result = func(**tool_input)
+    except TypeError as exc:
+        # Claude sometimes drops required arguments on large tool calls.
+        # Return a helpful error so the agent can retry.
+        return (
+            f"Error: {exc}. "
+            f"The tool '{tool_name}' was called with arguments: {list(tool_input.keys())}. "
+            f"Please retry with all required arguments included. "
+            f"For write_file, you MUST provide both 'filepath' and 'content'. "
+            f"Try writing the content in smaller chunks if it's very large."
+        )
+    if len(result) > MAX_TOOL_OUTPUT:
+        return result[:MAX_TOOL_OUTPUT] + f"\n\n... (output truncated at {MAX_TOOL_OUTPUT:,} chars)"
+    return result

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from rich.console import Console
@@ -33,12 +34,41 @@ SYSTEM_PROMPT = (
 
 MODEL = "claude-opus-4-5"
 MAX_TOKENS = 8096
+MAX_PROMPT_CHARS = 600_000  # ~150K tokens — safe margin under 200K limit
+MAX_TOOL_OUTPUT_CHARS = 50_000  # cap individual tool results to prevent history bloat
 
 # Shared session history (one per process lifetime)
 history = SessionHistory()
 
 # Token manager — handles key rotation automatically
 token_manager = TokenManager(API_KEYS)
+
+
+def _safe_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return a clean message list that the API will accept.
+
+    1. Drops messages from the front until under MAX_PROMPT_CHARS.
+    2. Ensures the first message is a plain user message (not tool_result,
+       not assistant) so the API never sees orphaned references.
+    """
+    total = len(json.dumps(messages, default=str))
+    if total <= MAX_PROMPT_CHARS:
+        return messages
+
+    console.print(
+        f"[yellow]History too large ({total:,} chars) — clearing and starting fresh...[/yellow]"
+    )
+    # Rather than trying to surgically trim, just keep the last user message.
+    # This is the safest approach — no orphaned tool_use/tool_result pairs.
+    last_user = None
+    for msg in reversed(messages):
+        if msg.get("role") == "user" and isinstance(msg.get("content"), str):
+            last_user = msg
+            break
+    if last_user:
+        return [last_user]
+    # Fallback: keep only the very last message
+    return messages[-1:]
 
 
 async def run_agent(user_message: str) -> None:
@@ -57,18 +87,40 @@ async def run_agent(user_message: str) -> None:
         history.sanitize()
         messages = history.get_messages()
 
+        # Trim history if it's too large to avoid "prompt is too long" errors.
+        messages = _safe_messages(messages)
+
         console.print(
             f"[dim]Using API key #{token_manager.active_key_index} "
             f"of {token_manager.total_keys}[/dim]"
         )
 
-        response = token_manager.create_message(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            system=SYSTEM_PROMPT,
-            tools=TOOL_DEFINITIONS,
-            messages=messages,
-        )
+        try:
+            response = token_manager.create_message(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=SYSTEM_PROMPT,
+                tools=TOOL_DEFINITIONS,
+                messages=messages,
+            )
+        except Exception as exc:
+            err_msg = str(exc)
+            if "prompt is too long" in err_msg or "tool_use_id" in err_msg or "tool_result" in err_msg or "tool_use" in err_msg:
+                console.print(
+                    "[yellow]Bad history detected — clearing and retrying...[/yellow]"
+                )
+                history.clear()
+                history.add_user(user_message)
+                messages = history.get_messages()
+                response = token_manager.create_message(
+                    model=MODEL,
+                    max_tokens=MAX_TOKENS,
+                    system=SYSTEM_PROMPT,
+                    tools=TOOL_DEFINITIONS,
+                    messages=messages,
+                )
+            else:
+                raise
 
         # Store the raw assistant content for future context
         history.add_assistant(response.content)
