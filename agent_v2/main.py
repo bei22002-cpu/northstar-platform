@@ -14,7 +14,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from agent_v2.config import API_KEYS, WORKSPACE
+from agent_v2.config import API_KEYS, WORKSPACE, get_provider_name
 from agent_v2.hooks import fire_simple, load_hooks_from_config
 from agent_v2.kairos import (
     add_goal,
@@ -40,9 +40,23 @@ console = Console()
 
 def _print_banner() -> None:
     banner = Text()
+    provider = get_provider_name()
     banner.append("Cornerstone AI Agent v2 — Claude Code Edition\n", style="bold magenta")
     banner.append(f"Workspace: {WORKSPACE}\n", style="dim")
-    banner.append(f"API Keys loaded: {len(API_KEYS)}\n", style="bold cyan")
+    if provider in ("claude", "anthropic"):
+        banner.append(f"Provider: Claude | API Keys loaded: {len(API_KEYS)}\n", style="bold cyan")
+    elif provider in ("openclaw", "openclaw-zero-token", "zerotok"):
+        import os
+        oc_model = os.getenv("OPENCLAW_MODEL", "claude-sonnet-4-20250514")
+        banner.append(f"Provider: OpenClaw Zero Token | Model: {oc_model} | FREE\n", style="bold green")
+    elif provider == "ollama":
+        import os
+        ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+        banner.append(f"Provider: Ollama (local) | Model: {ollama_model} | FREE\n", style="bold green")
+    elif provider in ("gemini", "google"):
+        banner.append(f"Provider: Google Gemini | FREE tier\n", style="bold green")
+    else:
+        banner.append(f"Provider: {provider}\n", style="bold cyan")
     banner.append(
         "Fully autonomous with Claude Code-inspired features.\n",
         style="bold green",
@@ -79,7 +93,7 @@ def _print_banner() -> None:
     )
     banner.append("Type 'exit' or 'quit' to end the session.\n", style="dim")
     banner.append(
-        "Commands: /keys /memory /hooks /compact /permissions /undercover /kairos /3dprint /gamedev /help\n",
+        "Commands: /keys /model /memory /hooks /compact /permissions /undercover /kairos /3dprint /gamedev /help\n",
         style="dim",
     )
     console.print(
@@ -123,6 +137,7 @@ def _print_help() -> None:
     help_text.add_row("/compact", "Show auto-compact status")
     help_text.add_row("/permissions", "Show permission policy status")
     help_text.add_row("/undercover", "Show undercover mode status")
+    help_text.add_row("/model", "Show current AI provider (Claude, Ollama, or Gemini)")
     help_text.add_row("/3dprint", "Show 3D printing module status")
     help_text.add_row("/gamedev", "Show game development module status")
     help_text.add_row("/kairos", "Show KAIROS queue status")
@@ -198,6 +213,53 @@ def _print_permissions() -> None:
         title="Permission Policy",
         border_style="cyan",
     ))
+
+
+def _print_model_info() -> None:
+    """Show current AI provider and model info."""
+    provider = get_provider_name()
+    import os
+    info = f"Active provider: [bold]{provider}[/bold]\n\n"
+    if provider in ("claude", "anthropic"):
+        info += (
+            f"Model: claude-opus-4-5\n"
+            f"API Keys loaded: {len(API_KEYS)}\n"
+            f"Cost: ~$15/M input, ~$75/M output tokens\n\n"
+            "To switch to a free provider, set in agent_v2/.env:\n"
+            "  PROVIDER=openclaw (FREE — uses OpenClaw Zero Token gateway)\n"
+            "  PROVIDER=ollama   (FREE — local, needs Ollama installed)\n"
+            "  PROVIDER=gemini   (FREE tier — cloud, needs GEMINI_API_KEY)"
+        )
+    elif provider in ("openclaw", "openclaw-zero-token", "zerotok"):
+        oc_model = os.getenv("OPENCLAW_MODEL", "claude-sonnet-4-20250514")
+        oc_url = os.getenv("OPENCLAW_BASE_URL", "http://localhost:3000")
+        info += (
+            f"Model: {oc_model}\n"
+            f"Gateway: {oc_url}\n"
+            f"Cost: FREE (via browser session)\n\n"
+            "Supported: Claude, ChatGPT, Gemini, DeepSeek, Grok, Qwen, and more\n"
+            "Change model in .env: OPENCLAW_MODEL=deepseek-chat\n"
+            "Setup: github.com/linuxhsj/openclaw-zero-token"
+        )
+    elif provider == "ollama":
+        ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        info += (
+            f"Model: {ollama_model}\n"
+            f"URL: {ollama_url}\n"
+            f"Cost: FREE (runs locally)\n\n"
+            "Change model in .env: OLLAMA_MODEL=mistral\n"
+            "Available: tinyllama, phi3:mini, llama3.1:8b, mistral, codellama"
+        )
+    elif provider in ("gemini", "google"):
+        gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        info += (
+            f"Model: {gemini_model}\n"
+            f"Cost: FREE tier (15 req/min with Flash)\n\n"
+            "Get API key: https://aistudio.google.com/app/apikey\n"
+            "Change model in .env: GEMINI_MODEL=gemini-1.5-pro"
+        )
+    console.print(Panel(info, title="AI Provider", border_style="cyan"))
 
 
 def _print_undercover() -> None:
@@ -342,6 +404,11 @@ def main() -> None:
                 continue
             if user_input.lower() == "/kairos reset":
                 kairos_reset()
+                continue
+
+            # --- Model/Provider command ---
+            if user_input.lower() == "/model":
+                _print_model_info()
                 continue
 
             # --- 3D Printing commands ---

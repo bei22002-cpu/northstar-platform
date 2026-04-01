@@ -20,15 +20,14 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 
 from agent_v2.compact import compact_history, get_compact_summary, should_compact
-from agent_v2.config import API_KEYS
 from agent_v2.history import SessionHistory
 from agent_v2.hooks import fire_post_tool_use, fire_pre_tool_use, fire_simple
 from agent_v2.memory import extract_facts_from_turn, memory_store
 from agent_v2.permissions import permissions
+from agent_v2.providers import get_provider
 from agent_v2.safety import is_blocked, log_action
 from agent_v2.sentiment import Sentiment, detect_sentiment
 from agent_v2.subagent import run_subagent
-from agent_v2.token_manager import TokenManager
 from agent_v2.tools import TOOL_DEFINITIONS, execute_tool
 from agent_v2.undercover import get_undercover_prompt
 
@@ -74,8 +73,8 @@ MAX_PROMPT_CHARS = 600_000  # ~150K tokens — safe margin under 200K limit
 # Shared session history (one per process lifetime)
 history = SessionHistory()
 
-# Token manager — handles key rotation automatically
-token_manager = TokenManager(API_KEYS)
+# Provider — handles Claude (with key rotation), Ollama, or Gemini
+token_manager = get_provider()
 
 
 def _build_system_prompt(user_message: str) -> str:
