@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Successful — {{ app_name }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">{{ app_name }}</a>
+        <div class="navbar-links">
+            <a href="/chat">Chat</a>
+            <a href="/dashboard">Dashboard</a>
+        </div>
+    </nav>
+
+    <div class="auth-container">
+        <div class="auth-card" style="text-align:center;">
+            <div style="font-size:3rem; margin-bottom:1rem;">&#127881;</div>
+            <h2>Payment Successful!</h2>
+            <p class="text-dim" style="margin:1rem 0;">Your plan has been upgraded. You now have access to more models and tokens.</p>
+            <a href="/chat" class="btn btn-primary btn-lg">Start Chatting</a>
+            <div class="mt-2">
+                <a href="/dashboard" class="text-dim">Go to Dashboard</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — {{ app_name }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">{{ app_name }}</a>
+        <div class="navbar-links">
+            <a href="/chat">Chat</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/admin">Admin</a>
+            <a href="/logout" class="btn btn-outline btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <div class="dashboard">
+        <h1>Admin Dashboard</h1>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Users</div>
+                <div class="stat-value primary">{{ total_users }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Pro Users</div>
+                <div class="stat-value">{{ pro_users }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Enterprise Users</div>
+                <div class="stat-value">{{ enterprise_users }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Monthly Revenue</div>
+                <div class="stat-value success">${{ total_revenue_monthly }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Tokens Used</div>
+                <div class="stat-value">{{ "{:,}".format(total_tokens) }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">API Cost</div>
+                <div class="stat-value warning">${{ total_cost }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Profit Margin</div>
+                <div class="stat-value success">
+                    {% if total_revenue_monthly > 0 %}
+                        {{ "%.0f"|format(((total_revenue_monthly - total_cost) / total_revenue_monthly) * 100) }}%
+                    {% else %}
+                        -
+                    {% endif %}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Conversations</div>
+                <div class="stat-value">{{ total_conversations }}</div>
+            </div>
+        </div>
+
+        <div class="card mb-2">
+            <div class="card-header">Users</div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Name</th>
+                            <th>Plan</th>
+                            <th>Tokens Used</th>
+                            <th>Joined</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users %}
+                        <tr id="user-{{ u.id }}">
+                            <td>{{ u.email }}</td>
+                            <td>{{ u.name }}</td>
+                            <td>
+                                <select class="model-select" onchange="updatePlan('{{ u.id }}', this.value)">
+                                    <option value="free" {% if u.plan == 'free' %}selected{% endif %}>Free</option>
+                                    <option value="pro" {% if u.plan == 'pro' %}selected{% endif %}>Pro</option>
+                                    <option value="enterprise" {% if u.plan == 'enterprise' %}selected{% endif %}>Enterprise</option>
+                                </select>
+                            </td>
+                            <td>{{ "{:,}".format(u.tokens_used_this_month) }}</td>
+                            <td>{{ u.created_at.strftime('%b %d, %Y') if u.created_at else '-' }}</td>
+                            <td>
+                                <span class="badge {% if u.is_active %}badge-pro{% else %}badge-free{% endif %}">
+                                    {{ 'Active' if u.is_active else 'Disabled' }}
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn btn-outline btn-sm" onclick="toggleUser('{{ u.id }}')">
+                                    {{ 'Disable' if u.is_active else 'Enable' }}
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if recent_usage %}
+        <div class="card">
+            <div class="card-header">Recent API Usage</div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>User</th>
+                            <th>Model</th>
+                            <th>Input</th>
+                            <th>Output</th>
+                            <th>Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rec in recent_usage %}
+                        <tr>
+                            <td>{{ rec.created_at.strftime('%b %d, %H:%M') if rec.created_at else '-' }}</td>
+                            <td>{{ rec.user.email if rec.user else '-' }}</td>
+                            <td>{{ rec.model.split('-')[-1] if rec.model else '-' }}</td>
+                            <td>{{ "{:,}".format(rec.input_tokens) }}</td>
+                            <td>{{ "{:,}".format(rec.output_tokens) }}</td>
+                            <td>${{ "%.4f"|format(rec.cost_usd) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+    async function updatePlan(userId, plan) {
+        try {
+            await fetch('/api/admin/users/' + userId + '/plan', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({plan}),
+            });
+        } catch(e) {
+            alert('Failed to update plan');
+        }
+    }
+
+    async function toggleUser(userId) {
+        try {
+            const res = await fetch('/api/admin/users/' + userId + '/toggle', {method: 'POST'});
+            const data = await res.json();
+            if (data.status === 'ok') {
+                location.reload();
+            }
+        } catch(e) {
+            alert('Failed to toggle user');
+        }
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat — {{ app_name }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">{{ app_name }}</a>
+        <div class="navbar-links">
+            <a href="/chat">Chat</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/pricing">Pricing</a>
+            {% if user.is_admin %}<a href="/admin">Admin</a>{% endif %}
+            <a href="/logout" class="btn btn-outline btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <div class="chat-layout">
+        <!-- Sidebar -->
+        <div class="chat-sidebar">
+            <div class="chat-sidebar-header">
+                <button class="btn btn-primary btn-sm" style="width:100%; justify-content:center;" onclick="newConversation()">
+                    + New Chat
+                </button>
+            </div>
+            <div class="chat-list" id="chatList">
+                {% for conv in conversations %}
+                <a href="/chat?c={{ conv.id }}" class="chat-list-item {% if conv.id == current_conv_id %}active{% endif %}">
+                    {{ conv.title }}
+                </a>
+                {% endfor %}
+                {% if not conversations %}
+                <div class="empty-state" style="padding:2rem 1rem;">
+                    <p class="text-dim" style="font-size:0.85rem;">No conversations yet.<br>Start chatting!</p>
+                </div>
+                {% endif %}
+            </div>
+            <div style="padding:1rem; border-top:1px solid var(--border);">
+                <div class="text-dim" style="font-size:0.75rem;">
+                    <strong>{{ user.plan|title }}</strong> plan<br>
+                    {{ "{:,}".format(plan_info.monthly_tokens - user.tokens_used_this_month) }} tokens remaining
+                </div>
+            </div>
+        </div>
+
+        <!-- Main chat area -->
+        <div class="chat-main">
+            <div class="chat-messages" id="chatMessages">
+                {% if messages %}
+                    {% for msg in messages %}
+                    <div class="chat-message {{ msg.role }}">
+                        <div class="chat-message-bubble">{{ msg.content }}</div>
+                        {% if msg.role == 'assistant' and msg.cost_usd > 0 %}
+                        <div class="chat-message-meta">
+                            {{ "{:,}".format(msg.input_tokens + msg.output_tokens) }} tokens &middot; ${{ "%.4f"|format(msg.cost_usd) }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state" id="emptyState">
+                        <h3>Start a conversation</h3>
+                        <p>Ask me anything — code questions, debugging help, architecture advice, or just chat.</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="chat-input-area">
+                <div class="chat-usage-bar">
+                    <select class="model-select" id="modelSelect">
+                        {% for m in allowed_models %}
+                        <option value="{{ m }}">{{ m|title }}</option>
+                        {% endfor %}
+                    </select>
+                    <span id="tokenDisplay">
+                        {{ "{:,}".format(plan_info.monthly_tokens - user.tokens_used_this_month) }} tokens remaining
+                    </span>
+                    <span id="costDisplay"></span>
+                </div>
+                <div class="chat-input-row">
+                    <textarea id="chatInput" placeholder="Type your message..." rows="1"
+                        onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendMessage();}"></textarea>
+                    <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let conversationId = '{{ current_conv_id }}' || '';
+    let sending = false;
+    let totalCost = 0;
+
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const emptyState = document.getElementById('emptyState');
+    const tokenDisplay = document.getElementById('tokenDisplay');
+    const costDisplay = document.getElementById('costDisplay');
+
+    // Auto-resize textarea
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+    });
+
+    function appendMessage(role, content, meta) {
+        if (emptyState) emptyState.style.display = 'none';
+
+        const div = document.createElement('div');
+        div.className = 'chat-message ' + role;
+
+        let html = '<div class="chat-message-bubble">' + escapeHtml(content) + '</div>';
+        if (meta) {
+            html += '<div class="chat-message-meta">' + meta + '</div>';
+        }
+        div.innerHTML = html;
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        return div;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        let html = div.innerHTML;
+        // Basic code block formatting
+        html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        html = html.replace(/\n/g, '<br>');
+        return html;
+    }
+
+    async function newConversation() {
+        try {
+            const res = await fetch('/api/conversations/new', {method: 'POST'});
+            const data = await res.json();
+            if (data.conversation_id) {
+                window.location.href = '/chat?c=' + data.conversation_id;
+            }
+        } catch(e) {
+            console.error(e);
+        }
+    }
+
+    async function sendMessage() {
+        if (sending) return;
+        const message = chatInput.value.trim();
+        if (!message) return;
+
+        sending = true;
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<span class="spinner"></span>';
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+
+        appendMessage('user', message);
+
+        const model = document.getElementById('modelSelect').value;
+
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    message: message,
+                    conversation_id: conversationId,
+                    model: model,
+                }),
+            });
+            const data = await res.json();
+
+            if (data.error) {
+                appendMessage('assistant', data.error, 'Error');
+            } else {
+                const tokens = (data.input_tokens || 0) + (data.output_tokens || 0);
+                const cost = data.cost_usd || 0;
+                totalCost += cost;
+                const meta = tokens.toLocaleString() + ' tokens &middot; $' + cost.toFixed(4);
+                appendMessage('assistant', data.response, meta);
+
+                // Update conversation ID for new conversations
+                if (data.conversation_id && !conversationId) {
+                    conversationId = data.conversation_id;
+                    history.replaceState(null, '', '/chat?c=' + conversationId);
+                }
+
+                // Update token display
+                if (data.tokens_remaining !== undefined) {
+                    tokenDisplay.textContent = data.tokens_remaining.toLocaleString() + ' tokens remaining';
+                }
+                costDisplay.textContent = 'Session: $' + totalCost.toFixed(4);
+            }
+        } catch(e) {
+            appendMessage('assistant', 'Network error. Please try again.', 'Error');
+        }
+
+        sending = false;
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send';
+        chatInput.focus();
+    }
+
+    // Auto-scroll to bottom on load
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    chatInput.focus();
+    </script>
+</body>
+</html>

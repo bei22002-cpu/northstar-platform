@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }} — AI Agent as a Service</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">{{ app_name }}</a>
+        <div class="navbar-links">
+            <a href="/pricing">Pricing</a>
+            {% if user %}
+                <a href="/chat">Chat</a>
+                <a href="/dashboard">Dashboard</a>
+                {% if user.is_admin %}<a href="/admin">Admin</a>{% endif %}
+                <a href="/logout" class="btn btn-outline btn-sm">Logout</a>
+            {% else %}
+                <a href="/login">Login</a>
+                <a href="/signup" class="btn btn-primary btn-sm">Get Started</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <section class="hero">
+        <h1>Your AI Coding Assistant, On Demand</h1>
+        <p>Harness the power of Claude to write code, debug issues, generate tests, and manage your entire codebase — all through a simple chat interface.</p>
+        <div class="hero-actions">
+            {% if user %}
+                <a href="/chat" class="btn btn-primary btn-lg">Open Chat</a>
+                <a href="/dashboard" class="btn btn-outline btn-lg">Dashboard</a>
+            {% else %}
+                <a href="/signup" class="btn btn-primary btn-lg">Start Free</a>
+                <a href="/pricing" class="btn btn-outline btn-lg">View Pricing</a>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="feature-card">
+            <div class="feature-icon">&#129302;</div>
+            <h3>AI-Powered Chat</h3>
+            <p>Chat with Claude to write, review, and debug code. Supports Haiku, Sonnet, and Opus models based on your plan.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#128200;</div>
+            <h3>Usage Metering</h3>
+            <p>Track your token usage in real time. Each plan includes a generous monthly token allowance with clear visibility.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#128274;</div>
+            <h3>Secure by Design</h3>
+            <p>Your conversations are private. Dangerous commands are blocked automatically. Enterprise-grade safety built in.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#9889;</div>
+            <h3>Multiple Models</h3>
+            <p>Switch between Haiku (fast), Sonnet (balanced), and Opus (powerful) depending on your task complexity.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#128176;</div>
+            <h3>Simple Pricing</h3>
+            <p>Start free with 50K tokens. Upgrade to Pro or Enterprise as your needs grow. No hidden fees.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">&#128736;</div>
+            <h3>Built for Developers</h3>
+            <p>Code blocks with syntax highlighting, conversation history, and a clean interface designed for productivity.</p>
+        </div>
+    </section>
+
+    <section style="text-align:center; padding: 3rem 2rem 5rem;">
+        <h2 style="font-size: 2rem; margin-bottom: 1rem;">Ready to get started?</h2>
+        <p class="text-dim" style="margin-bottom: 2rem;">Free plan includes 50K tokens/month. No credit card required.</p>
+        {% if user %}
+            <a href="/chat" class="btn btn-primary btn-lg">Open Chat</a>
+        {% else %}
+            <a href="/signup" class="btn btn-primary btn-lg">Create Free Account</a>
+        {% endif %}
+    </section>
+
+    <footer class="footer">
+        <p>&copy; 2026 {{ app_name }}. Built with Claude by Anthropic.</p>
+    </footer>
+</body>
+</html>
