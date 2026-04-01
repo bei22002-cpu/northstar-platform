@@ -1,8 +1,13 @@
-"""Tool implementations for the Cornerstone AI Agent v2."""
+"""Tool implementations for the Cornerstone AI Agent v2.
+
+Includes the Task tool for sub-agent delegation (Claude Code Agent Teams)
+and undercover-mode-aware git operations.
+"""
 
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from typing import Any
 
@@ -62,6 +67,16 @@ def list_files(directory: str = ".") -> str:
 
 def run_command(command: str) -> str:
     """Run a shell command inside WORKSPACE with a 60-second timeout."""
+    # Scrub AI markers from git commit messages if undercover mode is on
+    from agent_v2.undercover import is_undercover_enabled, scrub_commit_message
+    if is_undercover_enabled() and "git commit" in command:
+        match = re.search(r'-m\s+["\'](.+?)["\']', command)
+        if match:
+            original = match.group(1)
+            scrubbed = scrub_commit_message(original)
+            if scrubbed != original:
+                command = command.replace(original, scrubbed)
+
     try:
         result = subprocess.run(
             command,
@@ -160,6 +175,26 @@ def git_status() -> str:
         return output or "(no git output)"
     except Exception as exc:
         return f"Error running git commands: {exc}"
+
+
+def patch_file(filepath: str, find: str, replace: str) -> str:
+    """Find-and-replace within a file.  Reads the file, replaces the first
+    occurrence of *find* with *replace*, and writes it back.
+    """
+    try:
+        full = os.path.join(WORKSPACE, filepath)
+        if not os.path.isfile(full):
+            return f"Error: file not found \u2014 {filepath}"
+        with open(full, "r", encoding="utf-8") as fh:
+            content = fh.read()
+        if find not in content:
+            return f"Error: pattern not found in {filepath}"
+        new_content = content.replace(find, replace, 1)
+        with open(full, "w", encoding="utf-8") as fh:
+            fh.write(new_content)
+        return f"Successfully patched {filepath}"
+    except Exception as exc:
+        return f"Error patching file: {exc}"
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +319,53 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": [],
         },
     },
+    {
+        "name": "patch_file",
+        "description": "Find and replace text within a file. Replaces the first occurrence of 'find' with 'replace'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filepath": {
+                    "type": "string",
+                    "description": "Path to the file relative to workspace root.",
+                },
+                "find": {
+                    "type": "string",
+                    "description": "The exact text to find in the file.",
+                },
+                "replace": {
+                    "type": "string",
+                    "description": "The text to replace it with.",
+                },
+            },
+            "required": ["filepath", "find", "replace"],
+        },
+    },
+    {
+        "name": "task",
+        "description": (
+            "Delegate a focused sub-task to a sub-agent with its own context window. "
+            "The sub-agent can use all tools except 'task' (no recursive spawning). "
+            "Use this for complex operations that would bloat the main conversation: "
+            "code generation, multi-file refactoring, research, analysis. "
+            "The sub-agent returns its results as a string."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "task": {
+                    "type": "string",
+                    "description": "Clear description of the task for the sub-agent to complete.",
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Optional context from the current conversation to help the sub-agent.",
+                    "default": "",
+                },
+            },
+            "required": ["task"],
+        },
+    },
 ]
 
 
@@ -300,6 +382,8 @@ _TOOL_MAP = {
     "create_directory": create_directory,
     "search_in_files": search_in_files,
     "git_status": git_status,
+    "patch_file": patch_file,
+    # "task" is handled specially in session.py -- not dispatched here
 }
 
 

@@ -1,4 +1,14 @@
-"""Core agent loop — sends messages to Claude with automatic token rotation."""
+"""Core agent loop — sends messages to Claude with automatic token rotation.
+
+Integrates Claude Code-inspired features:
+- Frustration detection with adaptive tone
+- Auto-compact with summarization (instead of just clearing history)
+- Hook system for pre/post tool execution
+- Sub-agent dispatch via Task tool
+- Undercover mode for git operations
+- Enhanced permission checks
+- Persistent memory across sessions
+"""
 
 from __future__ import annotations
 
@@ -9,33 +19,57 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
+from agent_v2.compact import compact_history, get_compact_summary, should_compact
 from agent_v2.config import API_KEYS
 from agent_v2.history import SessionHistory
+from agent_v2.hooks import fire_post_tool_use, fire_pre_tool_use, fire_simple
+from agent_v2.memory import extract_facts_from_turn, memory_store
+from agent_v2.permissions import permissions
 from agent_v2.safety import is_blocked, log_action
+from agent_v2.sentiment import Sentiment, detect_sentiment
+from agent_v2.subagent import run_subagent
 from agent_v2.token_manager import TokenManager
 from agent_v2.tools import TOOL_DEFINITIONS, execute_tool
+from agent_v2.undercover import get_undercover_prompt
 
 console = Console()
 
+# ---------------------------------------------------------------------------
+# System prompt — Claude Code-inspired structured instructions
+# ---------------------------------------------------------------------------
+
 SYSTEM_PROMPT = (
-    "You are an expert senior software engineer working on the "
-    "Cornerstone Platform \u2014 a FastAPI + PostgreSQL backend project. "
-    "You have direct access to the project workspace and can read, "
-    "write, create, delete files, run commands, and search code.\n\n"
-    "Rules:\n"
+    "You are Cornerstone AI — an expert autonomous coding agent working on "
+    "the user's project. You have direct access to the workspace and can "
+    "read, write, create, delete files, run commands, and search code.\n\n"
+    "## Core Rules\n"
     "- Always read a file before overwriting it.\n"
     "- Never delete files unless the user explicitly requests it.\n"
-    "- Always explain what you are about to do in plain English "
-    "before using a tool.\n"
-    "- Write clean, production-quality Python code.\n"
+    "- Explain what you are about to do before using a tool.\n"
+    "- Write clean, production-quality code.\n"
     "- Follow the existing project structure and conventions.\n"
-    "- After completing a task, summarize what you did."
+    "- After completing a task, summarize what you did.\n\n"
+    "## Tool Use Best Practices\n"
+    "- Prefer targeted reads over listing entire directories.\n"
+    "- When writing large files, break them into smaller chunks if needed.\n"
+    "- Always provide BOTH 'filepath' and 'content' when using write_file.\n"
+    "- Use search_in_files to find code before making changes.\n"
+    "- Check git_status before and after making changes.\n\n"
+    "## Task Tool\n"
+    "- Use the 'task' tool to delegate focused sub-tasks.\n"
+    "- Sub-tasks get their own context window — use them for complex, "
+    "multi-step operations that would bloat the main conversation.\n"
+    "- Good candidates: code generation, refactoring, research, analysis.\n\n"
+    "## Error Handling\n"
+    "- If a tool call fails, analyze the error and retry with corrections.\n"
+    "- If write_file fails due to missing content, retry with the content "
+    "argument explicitly included.\n"
+    "- Never repeat the exact same failing tool call more than twice.\n"
 )
 
 MODEL = "claude-opus-4-5"
 MAX_TOKENS = 8096
 MAX_PROMPT_CHARS = 600_000  # ~150K tokens — safe margin under 200K limit
-MAX_TOOL_OUTPUT_CHARS = 50_000  # cap individual tool results to prevent history bloat
 
 # Shared session history (one per process lifetime)
 history = SessionHistory()
@@ -44,22 +78,74 @@ history = SessionHistory()
 token_manager = TokenManager(API_KEYS)
 
 
+def _build_system_prompt(user_message: str) -> str:
+    """Build the full system prompt with dynamic additions.
+
+    Incorporates:
+    - Base system prompt
+    - Sentiment-based tone adjustments
+    - Undercover mode instructions
+    - Persistent memory context
+    - Auto-compact summary (if any)
+    """
+    prompt = SYSTEM_PROMPT
+
+    # Sentiment detection — adjust tone if user is frustrated/confused/urgent
+    sentiment_result = detect_sentiment(user_message)
+    if sentiment_result.sentiment != Sentiment.NEUTRAL:
+        console.print(
+            f"[dim]Sentiment: {sentiment_result.sentiment.value} "
+            f"(matched: {sentiment_result.matched_keyword})[/dim]"
+        )
+    prompt += sentiment_result.tone_instruction
+
+    # Undercover mode
+    prompt += get_undercover_prompt()
+
+    # Persistent memory — inject relevant memories
+    memory_context = memory_store.get_context_block(query=user_message)
+    if memory_context:
+        prompt += f"\n\n{memory_context}"
+
+    # Auto-compact summary from previous compaction
+    compact_summary = get_compact_summary()
+    if compact_summary:
+        prompt += (
+            f"\n\n[COMPACTED CONTEXT — summary of earlier conversation]\n"
+            f"{compact_summary}\n"
+            f"[END COMPACTED CONTEXT]"
+        )
+
+    return prompt
+
+
 def _safe_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Return a clean message list that the API will accept.
 
-    1. Drops messages from the front until under MAX_PROMPT_CHARS.
-    2. Ensures the first message is a plain user message (not tool_result,
-       not assistant) so the API never sees orphaned references.
+    Uses auto-compact when possible (summarizes old messages instead of
+    dropping them).  Falls back to clearing history if compaction fails.
     """
     total = len(json.dumps(messages, default=str))
     if total <= MAX_PROMPT_CHARS:
         return messages
 
+    # Try smart compaction first
+    if should_compact(messages):
+        console.print(
+            f"[yellow]History large ({total:,} chars) — attempting auto-compact...[/yellow]"
+        )
+        try:
+            return compact_history(
+                messages,
+                create_message_fn=token_manager.create_message,
+            )
+        except Exception as exc:
+            console.print(f"[yellow]Auto-compact failed: {exc}[/yellow]")
+
+    # Fallback: clear and keep last user message
     console.print(
         f"[yellow]History too large ({total:,} chars) — clearing and starting fresh...[/yellow]"
     )
-    # Rather than trying to surgically trim, just keep the last user message.
-    # This is the safest approach — no orphaned tool_use/tool_result pairs.
     last_user = None
     for msg in reversed(messages):
         if msg.get("role") == "user" and isinstance(msg.get("content"), str):
@@ -67,27 +153,37 @@ def _safe_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
             break
     if last_user:
         return [last_user]
-    # Fallback: keep only the very last message
     return messages[-1:]
 
 
 async def run_agent(user_message: str) -> None:
     """Send *user_message* to Claude and handle tool-use loops.
 
-    Uses the TokenManager to automatically rotate API keys when one key
-    hits a rate limit or returns an error, ensuring continuous progress.
+    Integrates all Claude Code-inspired features: hooks, permissions,
+    sentiment detection, auto-compact, sub-agents, memory.
     """
+    # Fire UserPromptSubmit hooks
+    from agent_v2.hooks import fire_user_prompt
+    prompt_result = fire_user_prompt(user_message)
+    if prompt_result["rejected"]:
+        console.print(
+            f"[yellow]Message rejected by hook: {prompt_result['reason']}[/yellow]"
+        )
+        return
+    user_message = prompt_result["message"]
 
     history.add_user(user_message)
     messages = history.get_messages()
 
+    # Build dynamic system prompt
+    system_prompt = _build_system_prompt(user_message)
+
     while True:
-        # Repair any orphaned tool_use blocks left over from a previous
-        # interrupted turn before we send messages to the API.
+        # Repair any orphaned tool_use blocks
         history.sanitize()
         messages = history.get_messages()
 
-        # Trim history if it's too large to avoid "prompt is too long" errors.
+        # Trim/compact history if too large
         messages = _safe_messages(messages)
 
         console.print(
@@ -99,13 +195,15 @@ async def run_agent(user_message: str) -> None:
             response = token_manager.create_message(
                 model=MODEL,
                 max_tokens=MAX_TOKENS,
-                system=SYSTEM_PROMPT,
+                system=system_prompt,
                 tools=TOOL_DEFINITIONS,
                 messages=messages,
             )
         except Exception as exc:
             err_msg = str(exc)
-            if "prompt is too long" in err_msg or "tool_use_id" in err_msg or "tool_result" in err_msg or "tool_use" in err_msg:
+            if any(kw in err_msg for kw in (
+                "prompt is too long", "tool_use_id", "tool_result", "tool_use"
+            )):
                 console.print(
                     "[yellow]Bad history detected — clearing and retrying...[/yellow]"
                 )
@@ -115,20 +213,24 @@ async def run_agent(user_message: str) -> None:
                 response = token_manager.create_message(
                     model=MODEL,
                     max_tokens=MAX_TOKENS,
-                    system=SYSTEM_PROMPT,
+                    system=system_prompt,
                     tools=TOOL_DEFINITIONS,
                     messages=messages,
                 )
             else:
                 raise
 
-        # Store the raw assistant content for future context
+        # Store the raw assistant content
         history.add_assistant(response.content)
         messages = history.get_messages()
 
-        # Print any text blocks the model returned
+        # Collect assistant text for memory extraction
+        assistant_text = ""
+
+        # Print text blocks
         for block in response.content:
             if hasattr(block, "text"):
+                assistant_text += block.text
                 console.print(
                     Panel(
                         Markdown(block.text),
@@ -137,27 +239,43 @@ async def run_agent(user_message: str) -> None:
                     )
                 )
 
-        # Collect any tool_use blocks regardless of stop_reason.
-        # This prevents orphaned tool_use entries when stop_reason is
-        # "max_tokens" or another unexpected value.
+        # Extract and store facts from this turn (non-blocking)
+        try:
+            facts = extract_facts_from_turn(user_message, assistant_text)
+            for fact in facts:
+                memory_store.add(
+                    content=fact["content"],
+                    memory_type=fact["type"],
+                    tags=fact.get("tags", []),
+                    importance=fact.get("importance", 0.5),
+                )
+        except Exception:
+            pass  # Memory extraction should never crash the agent
+
+        # Collect tool_use blocks
         tool_use_blocks = [
             b for b in response.content if getattr(b, "type", None) == "tool_use"
         ]
 
         if not tool_use_blocks:
-            # No tools requested — we are done with this turn.
             break
 
-        # Process every tool_use block and guarantee that a matching
-        # tool_result is always appended, even if execution fails.
+        # Process every tool_use block
         tool_results: list[dict[str, Any]] = []
         for block in tool_use_blocks:
             tool_name: str = block.name
             tool_input: dict[str, Any] = block.input
 
             try:
-                # Safety check — block dangerous commands
-                if tool_name == "run_command" and is_blocked(
+                # Enhanced permission check
+                allowed, reason = permissions.check_tool_call(tool_name, tool_input)
+                if not allowed:
+                    result = f"PERMISSION DENIED: {reason}"
+                    console.print(
+                        f"[bold red]PERMISSION DENIED:[/bold red] {reason}"
+                    )
+                # Legacy safety check for run_command
+                elif tool_name == "run_command" and is_blocked(
                     tool_input.get("command", "")
                 ):
                     result = (
@@ -168,8 +286,35 @@ async def run_agent(user_message: str) -> None:
                         f"[bold red]BLOCKED:[/bold red] {tool_input.get('command', '')}"
                     )
                 else:
-                    log_action(tool_name, tool_input)
-                    result = execute_tool(tool_name, tool_input)
+                    # Fire PreToolUse hooks
+                    pre_result = fire_pre_tool_use(tool_name, tool_input)
+                    if pre_result["blocked"]:
+                        result = f"BLOCKED by hook: {pre_result['reason']}"
+                        console.print(
+                            f"[yellow]Tool blocked by hook: {pre_result['reason']}[/yellow]"
+                        )
+                    else:
+                        tool_input = pre_result["tool_input"]
+                        log_action(tool_name, tool_input)
+
+                        # Handle sub-agent Task tool specially
+                        if tool_name == "task":
+                            result = run_subagent(
+                                task=tool_input.get("task", ""),
+                                context=tool_input.get("context", ""),
+                                create_message_fn=token_manager.create_message,
+                                tools=[
+                                    t for t in TOOL_DEFINITIONS
+                                    if t["name"] != "task"
+                                ],
+                                execute_tool_fn=execute_tool,
+                            )
+                        else:
+                            result = execute_tool(tool_name, tool_input)
+
+                        # Fire PostToolUse hooks
+                        result = fire_post_tool_use(tool_name, tool_input, result)
+
             except Exception as exc:
                 result = f"Error executing tool: {exc}"
                 console.print(
@@ -187,7 +332,5 @@ async def run_agent(user_message: str) -> None:
         history.add_tool_results(tool_results)
         messages = history.get_messages()
 
-        # If the original stop_reason was not "tool_use" (e.g. "max_tokens"),
-        # do not loop back for another API call — the turn is over.
         if response.stop_reason != "tool_use":
             break
