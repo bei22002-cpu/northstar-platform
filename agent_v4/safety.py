@@ -1,0 +1,82 @@
+"""Expanded safety layer for autonomous execution.
+
+Blocks dangerous commands for run_command, and guards write_file,
+delete_file, and patch_file against risky patterns.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from rich.console import Console
+from rich.panel import Panel
+
+console = Console()
+
+BLOCKED_COMMANDS: list[str] = [
+    "rm -rf /", "rm -rf ~", "rm -rf .", "rm -rf *",
+    "format", "del /f /s /q C:\\", "mkfs", "dd if=",
+    "shutdown", "reboot", "halt", "poweroff",
+    "DROP DATABASE", "DROP TABLE", "TRUNCATE TABLE",
+    ":(){:|:&};:",
+    "curl|bash", "curl | bash", "wget|bash", "wget | bash",
+    "curl|sh", "curl | sh", "wget|sh", "wget | sh",
+    "chmod 777", "chmod -R 777",
+    "cat /etc/shadow", "cat /etc/passwd",
+]
+
+BLOCKED_PATHS: list[str] = [
+    "..", "/etc/", "/usr/", "/bin/", "/sbin/",
+    "/boot/", "/proc/", "/sys/", "~/.ssh",
+]
+
+
+def is_command_blocked(command: str) -> bool:
+    cmd_lower = command.lower()
+    for blocked in BLOCKED_COMMANDS:
+        if blocked.lower() in cmd_lower:
+            return True
+    return False
+
+
+def is_path_blocked(filepath: str) -> bool:
+    fp_lower = filepath.lower()
+    for blocked in BLOCKED_PATHS:
+        if blocked.lower() in fp_lower:
+            return True
+    return False
+
+
+def check_safety(tool_name: str, tool_input: dict[str, Any]) -> str | None:
+    """Return None if safe, or a string explaining why blocked."""
+    if tool_name == "run_command":
+        cmd = tool_input.get("command", "")
+        if is_command_blocked(cmd):
+            return f"BLOCKED: '{cmd}' matches a dangerous command pattern."
+
+    if tool_name in ("write_file", "delete_file", "patch_file"):
+        fp = tool_input.get("filepath", "")
+        if is_path_blocked(fp):
+            return f"BLOCKED: '{fp}' targets a protected path."
+
+    if tool_name == "delete_file":
+        fp = tool_input.get("filepath", "")
+        if not fp or fp == "." or fp == "/":
+            return "BLOCKED: Cannot delete root or empty path."
+
+    return None
+
+
+def log_action(tool_name: str, tool_input: dict[str, Any]) -> None:
+    """Log what the agent is about to execute."""
+    lines: list[str] = [f"[bold cyan]Tool:[/bold cyan] {tool_name}"]
+    for key, value in tool_input.items():
+        if key == "content":
+            lines.append(f"[bold cyan]{key}:[/bold cyan] ({len(value)} characters)")
+        else:
+            display = str(value)
+            if len(display) > 200:
+                display = display[:200] + "..."
+            lines.append(f"[bold cyan]{key}:[/bold cyan] {display}")
+
+    console.print(Panel("\n".join(lines), title="Executing", border_style="green"))
