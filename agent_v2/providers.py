@@ -424,7 +424,21 @@ class OllamaProvider:
         try:
             with urllib.request.urlopen(req, timeout=300) as resp:
                 body = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            self._errors += 1
+            error_body = exc.read().decode("utf-8") if exc.fp else ""
+            if exc.code == 404:
+                raise RuntimeError(
+                    f"Ollama returned 404. The model '{model}' may not be "
+                    f"pulled yet.\nRun: ollama pull {model}\n"
+                    f"Or your Ollama version may be too old — update at "
+                    f"https://ollama.com/download\nResponse: {error_body}"
+                ) from exc
+            raise RuntimeError(
+                f"Ollama error {exc.code}: {error_body}"
+            ) from exc
         except urllib.error.URLError as exc:
+            self._errors += 1
             raise ConnectionError(
                 f"Cannot connect to Ollama at {self.base_url}. "
                 f"Make sure Ollama is running (ollama serve). Error: {exc}"
