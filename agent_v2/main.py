@@ -16,9 +16,21 @@ from rich.text import Text
 
 from agent_v2.config import API_KEYS, WORKSPACE
 from agent_v2.hooks import fire_simple, load_hooks_from_config
+from agent_v2.kairos import (
+    add_goal,
+    clear_queue,
+    get_state,
+    print_config as kairos_print_config,
+    print_queue as kairos_print_queue,
+    remove_goal,
+    reset_state as kairos_reset,
+    run_kairos,
+    set_budget,
+)
 from agent_v2.memory import memory_store
 from agent_v2.permissions import permissions
 from agent_v2.session import history, run_agent, token_manager
+from agent_v2.tools import TOOL_DEFINITIONS, execute_tool
 from agent_v2.undercover import is_undercover_enabled
 
 console = Console()
@@ -43,6 +55,10 @@ def _print_banner() -> None:
         f"Permissions ({permissions.preset_name})",
         f"Memory ({memory_store.count} facts)",
     ]
+    # KAIROS queue status
+    kairos_state = get_state()
+    kairos_pending = sum(1 for g in kairos_state.goals if g.status.value == "pending")
+    features.append(f"KAIROS ({kairos_pending} queued)")
     if is_undercover_enabled():
         features.append("Undercover mode ACTIVE")
     banner.append(
@@ -59,7 +75,7 @@ def _print_banner() -> None:
     )
     banner.append("Type 'exit' or 'quit' to end the session.\n", style="dim")
     banner.append(
-        "Commands: /keys /memory /hooks /compact /permissions /undercover /help\n",
+        "Commands: /keys /memory /hooks /compact /permissions /undercover /kairos /help\n",
         style="dim",
     )
     console.print(
@@ -103,6 +119,15 @@ def _print_help() -> None:
     help_text.add_row("/compact", "Show auto-compact status")
     help_text.add_row("/permissions", "Show permission policy status")
     help_text.add_row("/undercover", "Show undercover mode status")
+    help_text.add_row("/kairos", "Show KAIROS queue status")
+    help_text.add_row("/kairos add <goal>", "Add a goal to the KAIROS queue")
+    help_text.add_row("/kairos remove <#>", "Remove a pending goal by index")
+    help_text.add_row("/kairos run", "Start autonomous KAIROS run")
+    help_text.add_row("/kairos config", "Show KAIROS budget configuration")
+    help_text.add_row("/kairos budget <calls> <mins> <turns>", "Set budget limits")
+    help_text.add_row("/kairos dream", "Trigger dream distillation now")
+    help_text.add_row("/kairos clear", "Clear all pending goals")
+    help_text.add_row("/kairos reset", "Full reset of KAIROS state")
     help_text.add_row("/help", "Show this help message")
     help_text.add_row("exit / quit", "End the session")
     console.print(help_text)
@@ -245,6 +270,72 @@ def main() -> None:
                 continue
             if user_input.lower() == "/undercover":
                 _print_undercover()
+                continue
+
+            # --- KAIROS commands ---
+            if user_input.lower() == "/kairos":
+                kairos_print_queue()
+                continue
+            if user_input.lower().startswith("/kairos add "):
+                goal_text = user_input[len("/kairos add "):].strip()
+                if goal_text:
+                    add_goal(goal_text)
+                else:
+                    console.print("[yellow]Usage: /kairos add <goal description>[/yellow]")
+                continue
+            if user_input.lower().startswith("/kairos remove "):
+                try:
+                    idx = int(user_input.split()[-1])
+                    if not remove_goal(idx):
+                        console.print("[yellow]Invalid index. Use /kairos to see the queue.[/yellow]")
+                except ValueError:
+                    console.print("[yellow]Usage: /kairos remove <index number>[/yellow]")
+                continue
+            if user_input.lower() == "/kairos run":
+                console.print(
+                    "[bold magenta]Starting KAIROS autonomous mode...[/bold magenta]"
+                )
+                result = run_kairos(
+                    create_message_fn=token_manager.create_message,
+                    tools=[
+                        t for t in TOOL_DEFINITIONS if t["name"] != "task"
+                    ],
+                    execute_tool_fn=execute_tool,
+                )
+                console.print(f"[cyan]{result}[/cyan]")
+                continue
+            if user_input.lower() == "/kairos config":
+                kairos_print_config()
+                continue
+            if user_input.lower().startswith("/kairos budget"):
+                parts = user_input.split()
+                try:
+                    calls = int(parts[2]) if len(parts) > 2 else None
+                    mins = int(parts[3]) if len(parts) > 3 else None
+                    turns = int(parts[4]) if len(parts) > 4 else None
+                    set_budget(
+                        max_api_calls=calls,
+                        max_wall_clock_mins=mins,
+                        max_turns_per_goal=turns,
+                    )
+                except (ValueError, IndexError):
+                    console.print(
+                        "[yellow]Usage: /kairos budget <max_calls> <max_mins> <max_turns>[/yellow]"
+                    )
+                continue
+            if user_input.lower() == "/kairos dream":
+                console.print("[magenta]Triggering dream distillation...[/magenta]")
+                from agent_v2.dream import run_dream
+                dream_result = run_dream(
+                    create_message_fn=token_manager.create_message
+                )
+                console.print(f"[magenta]{dream_result}[/magenta]")
+                continue
+            if user_input.lower() == "/kairos clear":
+                clear_queue()
+                continue
+            if user_input.lower() == "/kairos reset":
+                kairos_reset()
                 continue
 
             asyncio.run(run_agent(user_input))
