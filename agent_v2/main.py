@@ -55,6 +55,8 @@ def _print_banner() -> None:
         banner.append(f"Provider: Ollama (local) | Model: {ollama_model} | FREE\n", style="bold green")
     elif provider in ("gemini", "google"):
         banner.append(f"Provider: Google Gemini | FREE tier\n", style="bold green")
+    elif provider in ("free", "multi", "freemulti", "relay"):
+        banner.append("Provider: Free Multi (Groq + Gemini + Cerebras + GitHub) | FREE\n", style="bold green")
     else:
         banner.append(f"Provider: {provider}\n", style="bold cyan")
     banner.append(
@@ -258,6 +260,17 @@ def _print_model_info() -> None:
             f"Cost: FREE tier (15 req/min with Flash)\n\n"
             "Get API key: https://aistudio.google.com/app/apikey\n"
             "Change model in .env: GEMINI_MODEL=gemini-1.5-pro"
+        )
+    elif provider in ("free", "multi", "freemulti", "relay"):
+        info += (
+            "Mode: Multi-provider failover (chains free APIs)\n"
+            "Cost: FREE — all providers are free tier\n\n"
+            "Active providers (set keys in .env to enable):\n"
+            "  GROQ_API_KEY       — 30 req/min (https://console.groq.com/keys)\n"
+            "  GEMINI_API_KEY     — 15 req/min (https://aistudio.google.com/app/apikey)\n"
+            "  CEREBRAS_API_KEY   — fast free  (https://cloud.cerebras.ai/)\n"
+            "  GITHUB_TOKEN       — free       (https://github.com/settings/tokens)\n\n"
+            "Auto-switches to next provider on rate limits."
         )
     console.print(Panel(info, title="AI Provider", border_style="cyan"))
 

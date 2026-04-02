@@ -691,6 +691,382 @@ class GeminiProvider:
 
 
 # ---------------------------------------------------------------------------
+# Free multi-provider (chains Groq + Gemini + Cerebras + GitHub Models)
+# ---------------------------------------------------------------------------
+
+class FreeMultiProvider:
+    """Chains multiple free-tier LLM APIs with automatic failover.
+
+    Inspired by github.com/msmarkgu/RelayFreeLLM and
+    github.com/TheSecondChance/freeflow-llm — but built directly into
+    the agent with zero extra dependencies.
+
+    Supported free providers (in priority order):
+        1. Groq       — 30 req/min free, very fast (Llama, Mixtral)
+                         Key: https://console.groq.com/keys
+        2. Gemini     — 15 req/min free (Gemini Flash)
+                         Key: https://aistudio.google.com/app/apikey
+        3. Cerebras   — fast free tier (Llama)
+                         Key: https://cloud.cerebras.ai/
+        4. GitHub     — free with any GitHub token (GPT-4o, Llama, etc.)
+                         Token: https://github.com/settings/tokens
+
+    Set as many keys as you have — the provider will use all of them and
+    automatically switch when one hits a rate limit.
+    """
+
+    # Provider configs: (env_key, base_url, default_model, name)
+    PROVIDERS = [
+        ("GROQ_API_KEY", "https://api.groq.com/openai/v1", "llama-3.1-70b-versatile", "Groq"),
+        ("GEMINI_API_KEY", None, "gemini-2.0-flash", "Gemini"),  # Gemini uses its own API
+        ("CEREBRAS_API_KEY", "https://api.cerebras.ai/v1", "llama3.1-70b", "Cerebras"),
+        ("GITHUB_TOKEN", "https://models.inference.ai.azure.com", "gpt-4o", "GitHub Models"),
+    ]
+
+    def __init__(self) -> None:
+        self._providers: list[dict[str, Any]] = []
+        self._current_idx = 0
+        self._call_count = 0
+        self._errors = 0
+
+        # Discover available free providers from env vars
+        for env_key, base_url, default_model, name in self.PROVIDERS:
+            key = os.getenv(env_key, "")
+            if key:
+                if name == "Gemini":
+                    # Gemini uses its own provider internally
+                    self._providers.append({
+                        "name": name,
+                        "type": "gemini",
+                        "key": key,
+                        "model": os.getenv("GEMINI_MODEL", default_model),
+                    })
+                else:
+                    self._providers.append({
+                        "name": name,
+                        "type": "openai",
+                        "key": key,
+                        "base_url": base_url,
+                        "model": default_model,
+                    })
+
+        if not self._providers:
+            console.print(
+                "[bold red]No free API keys found![/bold red]\n"
+                "Set at least one of these in agent_v2/.env:\n"
+                "  GROQ_API_KEY=...      (https://console.groq.com/keys)\n"
+                "  GEMINI_API_KEY=...    (https://aistudio.google.com/app/apikey)\n"
+                "  CEREBRAS_API_KEY=...  (https://cloud.cerebras.ai/)\n"
+                "  GITHUB_TOKEN=...      (https://github.com/settings/tokens)\n"
+            )
+            raise SystemExit(1)
+
+        names = ", ".join(p["name"] for p in self._providers)
+        console.print(
+            f"[dim]FreeMultiProvider initialised — {len(self._providers)} "
+            f"provider(s): {names}[/dim]"
+        )
+
+    @property
+    def active_key_index(self) -> int:
+        return self._current_idx + 1
+
+    @property
+    def total_keys(self) -> int:
+        return len(self._providers)
+
+    def get_stats(self) -> list[dict[str, Any]]:
+        stats = []
+        for i, p in enumerate(self._providers):
+            stats.append({
+                "key_number": i + 1,
+                "masked_key": f"{p['name']}/{p['model']}",
+                "calls": self._call_count if i == self._current_idx else 0,
+                "errors": 0,
+                "rate_limited": False,
+                "cooldown_remaining": 0,
+            })
+        return stats
+
+    def create_message(self, **kwargs: Any) -> ShimMessage:
+        """Try each provider in order; on rate limit or error, fail over."""
+        import urllib.request
+        import urllib.error
+
+        last_error: Exception | None = None
+        attempts = 0
+
+        for _ in range(len(self._providers)):
+            provider = self._providers[self._current_idx]
+            attempts += 1
+
+            try:
+                if provider["type"] == "gemini":
+                    return self._call_gemini(provider, **kwargs)
+                else:
+                    return self._call_openai_compat(provider, **kwargs)
+            except Exception as exc:
+                last_error = exc
+                self._errors += 1
+                error_str = str(exc)
+                # Rate limit or server error — try next provider
+                if "429" in error_str or "rate" in error_str.lower() or "quota" in error_str.lower() or "500" in error_str or "503" in error_str:
+                    console.print(
+                        f"[yellow]{provider['name']} rate limited, "
+                        f"switching to next provider...[/yellow]"
+                    )
+                    self._current_idx = (self._current_idx + 1) % len(self._providers)
+                    continue
+                # Non-rate-limit error — still try next
+                console.print(
+                    f"[yellow]{provider['name']} error: {error_str[:100]}. "
+                    f"Trying next provider...[/yellow]"
+                )
+                self._current_idx = (self._current_idx + 1) % len(self._providers)
+                continue
+
+        raise RuntimeError(
+            f"All {len(self._providers)} free providers failed after "
+            f"{attempts} attempts. Last error: {last_error}"
+        )
+
+    def _call_openai_compat(
+        self, provider: dict[str, Any], **kwargs: Any
+    ) -> ShimMessage:
+        """Call an OpenAI-compatible API (Groq, Cerebras, GitHub Models)."""
+        import urllib.request
+        import urllib.error
+
+        system = kwargs.get("system", "")
+        messages = kwargs.get("messages", [])
+        tools = kwargs.get("tools", [])
+        max_tokens = kwargs.get("max_tokens", 4096)
+
+        # Build OpenAI-format messages
+        oai_messages: list[dict[str, Any]] = []
+        if system:
+            oai_messages.append({"role": "system", "content": system})
+
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                oai_messages.append({"role": role, "content": content})
+            elif isinstance(content, list):
+                text_parts: list[str] = []
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif block.get("type") == "tool_result":
+                            text_parts.append(
+                                f"[Tool result for {block.get('tool_use_id', '?')}]: "
+                                f"{block.get('content', '')}"
+                            )
+                        elif block.get("type") == "tool_use":
+                            text_parts.append(f"[Calling tool {block.get('name', '?')}]")
+                    elif hasattr(block, "text"):
+                        text_parts.append(block.text)
+                if text_parts:
+                    oai_messages.append({"role": role, "content": "\n".join(text_parts)})
+
+        # Convert tool schema
+        oai_tools: list[dict[str, Any]] = []
+        for tool in tools:
+            oai_tools.append({
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "parameters": tool.get("input_schema", {}),
+                },
+            })
+
+        payload: dict[str, Any] = {
+            "model": provider["model"],
+            "messages": oai_messages,
+            "max_tokens": max_tokens,
+            "stream": False,
+        }
+        if oai_tools:
+            payload["tools"] = oai_tools
+
+        data = json.dumps(payload).encode("utf-8")
+        url = f"{provider['base_url']}/chat/completions"
+
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {provider['key']}",
+            },
+            method="POST",
+        )
+
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+
+        self._call_count += 1
+
+        choices = body.get("choices", [])
+        if not choices:
+            return ShimMessage(
+                id=body.get("id", f"free-{self._call_count}"),
+                content=[TextBlock(text="(empty response)")],
+                model=provider["model"],
+                stop_reason="end_turn",
+            )
+
+        choice = choices[0]
+        message = choice.get("message", {})
+        content_text = message.get("content", "") or ""
+        tool_calls = message.get("tool_calls", [])
+
+        blocks: list[Any] = []
+        stop_reason = "end_turn"
+
+        if tool_calls:
+            stop_reason = "tool_use"
+            for i, tc in enumerate(tool_calls):
+                fn = tc.get("function", {})
+                args = fn.get("arguments", "{}")
+                blocks.append(ToolUseBlock(
+                    type="tool_use",
+                    id=tc.get("id", f"free_tool_{self._call_count}_{i}"),
+                    name=fn.get("name", ""),
+                    input=json.loads(args) if isinstance(args, str) else args,
+                ))
+
+        if content_text:
+            extracted_tool = _extract_tool_call_from_text(content_text, tools)
+            if extracted_tool and not tool_calls:
+                stop_reason = "tool_use"
+                blocks.append(extracted_tool)
+                clean_text = _clean_tool_text(content_text)
+                if clean_text.strip():
+                    blocks.insert(0, TextBlock(text=clean_text))
+            else:
+                blocks.append(TextBlock(text=content_text))
+
+        if not blocks:
+            blocks.append(TextBlock(text="(no content)"))
+
+        return ShimMessage(
+            id=body.get("id", f"free-{self._call_count}"),
+            content=blocks,
+            model=body.get("model", provider["model"]),
+            stop_reason=stop_reason,
+        )
+
+    def _call_gemini(self, provider: dict[str, Any], **kwargs: Any) -> ShimMessage:
+        """Call Google Gemini API (non-OpenAI format)."""
+        import urllib.request
+        import urllib.error
+
+        system = kwargs.get("system", "")
+        messages = kwargs.get("messages", [])
+        tools = kwargs.get("tools", [])
+
+        # Build Gemini contents
+        contents: list[dict[str, Any]] = []
+        for msg in messages:
+            role = "user" if msg.get("role") == "user" else "model"
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                contents.append({"role": role, "parts": [{"text": content}]})
+            elif isinstance(content, list):
+                text_parts: list[str] = []
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif block.get("type") == "tool_result":
+                            text_parts.append(
+                                f"[Tool result]: {block.get('content', '')}"
+                            )
+                    elif hasattr(block, "text"):
+                        text_parts.append(block.text)
+                if text_parts:
+                    contents.append({
+                        "role": role,
+                        "parts": [{"text": "\n".join(text_parts)}],
+                    })
+
+        payload: dict[str, Any] = {"contents": contents}
+        if system:
+            payload["systemInstruction"] = {"parts": [{"text": system}]}
+        if tools:
+            gemini_funcs = []
+            for tool in tools:
+                params = tool.get("input_schema", {})
+                clean_params = {
+                    k: v for k, v in params.items() if k != "additionalProperties"
+                }
+                gemini_funcs.append({
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "parameters": clean_params,
+                })
+            payload["tools"] = [{"functionDeclarations": gemini_funcs}]
+
+        model = provider["model"]
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/"
+            f"models/{model}:generateContent?key={provider['key']}"
+        )
+        data = json.dumps(payload).encode("utf-8")
+
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+
+        self._call_count += 1
+
+        candidates = body.get("candidates", [])
+        if not candidates:
+            return ShimMessage(
+                id=f"gemini-free-{self._call_count}",
+                content=[TextBlock(text="(empty Gemini response)")],
+                model=model,
+                stop_reason="end_turn",
+            )
+
+        parts = candidates[0].get("content", {}).get("parts", [])
+        blocks: list[Any] = []
+        stop_reason = "end_turn"
+
+        for part in parts:
+            if "text" in part:
+                blocks.append(TextBlock(text=part["text"]))
+            elif "functionCall" in part:
+                stop_reason = "tool_use"
+                fc = part["functionCall"]
+                blocks.append(ToolUseBlock(
+                    type="tool_use",
+                    id=f"gemini_free_{self._call_count}",
+                    name=fc.get("name", ""),
+                    input=fc.get("args", {}),
+                ))
+
+        if not blocks:
+            blocks.append(TextBlock(text="(no content)"))
+
+        return ShimMessage(
+            id=f"gemini-free-{self._call_count}",
+            content=blocks,
+            model=model,
+            stop_reason=stop_reason,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
 
@@ -789,6 +1165,9 @@ def get_provider(provider_name: str | None = None) -> Any:
 
     if name in ("gemini", "google"):
         return GeminiProvider()
+
+    if name in ("free", "multi", "freemulti", "relay"):
+        return FreeMultiProvider()
 
     console.print(
         f"[yellow]Unknown provider '{name}'. Falling back to Claude.[/yellow]"
