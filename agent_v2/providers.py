@@ -717,7 +717,7 @@ class FreeMultiProvider:
 
     # Provider configs: (env_key, base_url, default_model, name)
     PROVIDERS = [
-        ("GROQ_API_KEY", "https://api.groq.com/openai/v1", "llama-3.1-70b-versatile", "Groq"),
+        ("GROQ_API_KEY", "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile", "Groq"),
         ("GEMINI_API_KEY", None, "gemini-2.0-flash", "Gemini"),  # Gemini uses its own API
         ("CEREBRAS_API_KEY", "https://api.cerebras.ai/v1", "llama3.1-70b", "Cerebras"),
         ("GITHUB_TOKEN", "https://models.inference.ai.azure.com", "gpt-4o", "GitHub Models"),
